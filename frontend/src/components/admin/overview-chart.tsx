@@ -17,23 +17,23 @@ const generateData = (type: MetricType) => {
     case "users":
       return days.map((day, i) => ({
         day,
-        value: 12000 + Math.floor(Math.random() * 500) + (i * 50) // Upward trend
+        value: 12000 + (i * 120) + ((i % 2 === 0) ? 50 : -20) // Deterministic pattern
       }));
     case "jobs":
-      return days.map((day) => ({
+      return days.map((day, i) => ({
         day,
-        value: 2000 + Math.floor(Math.random() * 300)
+        value: 2000 + (i * 45) + ((i * 17) % 100)
       }));
     case "tokens":
       return days.map((day, i) => ({
         day,
-        value: 40 + Math.random() * 5 + (i * 0.5) // Slight upward, in Millions (scaled down for chart)
+        value: 40 + (i * 0.8) + Math.sin(i) * 2 // Deterministic sine wave
       }));
     case "health":
       // For health, maybe we show response time in ms
-      return days.map((day) => ({
+      return days.map((day, i) => ({
         day,
-        value: 45 + Math.floor(Math.random() * 20)
+        value: 45 + ((i * 23) % 20)
       }));
     default:
       return [];
