@@ -8,13 +8,23 @@ import {
   MessageSquare,
   FileText,
   Briefcase,
-  Settings,
   LogOut,
   UserCircle,
   TrendingUp,
-  Users
+  Users,
+  ShieldCheck,
+  Settings
 } from "lucide-react";
 import { ModeToggle } from "@/components/theme-toggle";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 
 const sidebarItems = [
   {
@@ -56,6 +66,8 @@ const sidebarItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  // Mock admin status - in real app this comes from auth context/session
+  const isAdmin = true;
 
   return (
     <div className="flex h-screen w-64 flex-col border-r bg-card text-card-foreground">
@@ -89,23 +101,44 @@ export function Sidebar() {
       </div>
 
       {/* User Profile / Footer */}
-      <div className="border-t p-4">
-        <Link href="/settings" className="flex items-center gap-3 rounded-lg bg-accent/50 p-3 hover:bg-accent transition-colors cursor-pointer">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <UserCircle className="h-6 w-6" />
-            </div>
-            <div className="flex-1 overflow-hidden">
-                <p className="truncate text-sm font-medium">Demo User</p>
-                <p className="truncate text-xs text-muted-foreground">demo@cvibe.ai</p>
-            </div>
-            <ModeToggle />
-            <button className="text-muted-foreground hover:text-destructive" onClick={(e) => {
-                e.preventDefault(); // Prevent navigation when clicking logout
-                // Handle logout logic
-            }}>
-                <LogOut className="h-5 w-5" />
-            </button>
-        </Link>
+      <div className="border-t p-4 flex items-center gap-2">
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex-1 flex items-center justify-start gap-3 h-auto p-2 px-3 hover:bg-accent">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
+                        <UserCircle className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 overflow-hidden text-left">
+                        <p className="truncate text-sm font-medium">Demo User</p>
+                        <p className="truncate text-xs text-muted-foreground">demo@cvibe.ai</p>
+                    </div>
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56" forceMount>
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                    <Link href="/settings" className="cursor-pointer">
+                        <Settings className="mr-2 h-4 w-4" />
+                        Settings
+                    </Link>
+                </DropdownMenuItem>
+                {isAdmin && (
+                    <DropdownMenuItem asChild>
+                        <Link href="/admin" className="cursor-pointer">
+                            <ShieldCheck className="mr-2 h-4 w-4" />
+                            Admin Dashboard
+                        </Link>
+                    </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-destructive focus:text-destructive cursor-pointer">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Log out
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+        <ModeToggle />
       </div>
     </div>
   );
