@@ -1,101 +1,181 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardFooter, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Heart, MessageCircle, Share2, MoreHorizontal, Send, Search, Hash, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { Heart, MessageCircle, Share2, MoreHorizontal, Send, Search, Hash, MessageSquare, ChevronDown, ChevronUp, Loader2, AlertCircle, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
-
-// Mock Data
-const INITIAL_POSTS = [
-  {
-    id: 1,
-    author: "Alice Chen",
-    role: "Frontend Developer",
-    content: "Just landed a job at Google using CVibe! The AI interview practice really helped me calm my nerves. Highly recommend the Mock Interview module.",
-    time: "2 hours ago",
-    likes: 24,
-    commentsCount: 3,
-    liked: false
-  },
-  {
-    id: 2,
-    author: "Bob Smith",
-    role: "Data Scientist",
-    content: "Has anyone tried the new Resume Builder? Is it better than Overleaf? I'm trying to decide if I should switch my LaTeX templates over. Also, does it support custom fonts?",
-    time: "4 hours ago",
-    likes: 8,
-    commentsCount: 12,
-    liked: true
-  },
-  {
-    id: 3,
-    author: "Carol Williams",
-    role: "Product Manager",
-    content: "Any tips for transitioning from Engineering to PM? I have an interview next week for a technical PM role.",
-    time: "5 hours ago",
-    likes: 15,
-    commentsCount: 0,
-    liked: false
-  }
-];
-
-const MOCK_COMMENTS = [
-    { id: 101, author: "David", role: "Software Engineer", content: "Congrats Alice! That's huge.", time: "1 hour ago" },
-    { id: 102, author: "Eve", role: "Recruiter", content: "Google is lucky to have you!", time: "45 mins ago" },
-    { id: 103, author: "Frank", role: "Student", content: "Which specific questions did you get?", time: "10 mins ago" },
-];
+import { api, Post, Comment } from "@/lib/api";
+import { useAuth } from "@/lib/contexts/auth-context";
 
 export default function CommunityPage() {
-  const [posts, setPosts] = useState(INITIAL_POSTS);
-  const [expandedPostId, setExpandedPostId] = useState<number | null>(null);
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
+  const [postComments, setPostComments] = useState<Record<string, Comment[]>>({});
   const [newPost, setNewPost] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [newComment, setNewComment] = useState("");
+  const [isPosting, setIsPosting] = useState(false);
 
-  const handlePost = () => {
-    if (!newPost.trim()) return;
-    const post = {
-        id: Date.now(),
-        author: "Demo User",
-        role: "Aspiring Engineer",
-        content: newPost,
-        time: "Just now",
-        likes: 0,
-        commentsCount: 0,
-        liked: false
-    };
-    setPosts([post, ...posts]);
-    setNewPost("");
-  };
+  // Fetch posts on mount
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      fetchPosts();
+    } else if (!authLoading && !isAuthenticated) {
+      setIsLoading(false);
+    }
+  }, [authLoading, isAuthenticated]);
 
-  const handleSendComment = (postId: number) => {
-      if (!newComment.trim()) return;
-      // In a real app, add comment logic here
-      console.log(`Comment on post ${postId}: ${newComment}`);
-      setNewComment("");
-  };
-
-  const toggleLike = (e: React.MouseEvent, id: number) => {
-    e.stopPropagation();
-    setPosts(posts.map(p => {
-        if (p.id === id) {
-            return { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 };
-        }
-        return p;
-    }));
-  };
-
-  const toggleComments = (id: number) => {
-      if (expandedPostId === id) {
-          setExpandedPostId(null);
-      } else {
-          setExpandedPostId(id);
+  const fetchPosts = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await api.getFeed();
+      if (res.success && res.data) {
+        setPosts(res.data.content || []);
       }
+    } catch (err) {
+      console.error('Error fetching posts:', err);
+      setError('Failed to load posts');
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const handlePost = async () => {
+    if (!newPost.trim()) return;
+    setIsPosting(true);
+    try {
+      const res = await api.createPost({ content: newPost });
+      if (res.success && res.data) {
+        setPosts([res.data, ...posts]);
+        setNewPost("");
+      } else {
+        setError(res.error || 'Failed to create post');
+      }
+    } catch (err) {
+      setError('Failed to create post');
+    } finally {
+      setIsPosting(false);
+    }
+  };
+
+  const handleSendComment = async (postId: string) => {
+    if (!newComment.trim()) return;
+    try {
+      const res = await api.createComment(postId, { content: newComment });
+      if (res.success && res.data) {
+        setPostComments(prev => ({
+          ...prev,
+          [postId]: [...(prev[postId] || []), res.data!]
+        }));
+        setPosts(prev => prev.map(p => 
+          p.id === postId ? { ...p, commentsCount: p.commentsCount + 1 } : p
+        ));
+        setNewComment("");
+      }
+    } catch (err) {
+      console.error('Error creating comment:', err);
+    }
+  };
+
+  const toggleLike = async (e: React.MouseEvent, postId: string) => {
+    e.stopPropagation();
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+
+    try {
+      if (post.isLiked) {
+        await api.unlikePost(postId);
+        setPosts(prev => prev.map(p => 
+          p.id === postId ? { ...p, isLiked: false, likesCount: p.likesCount - 1 } : p
+        ));
+      } else {
+        await api.likePost(postId);
+        setPosts(prev => prev.map(p => 
+          p.id === postId ? { ...p, isLiked: true, likesCount: p.likesCount + 1 } : p
+        ));
+      }
+    } catch (err) {
+      console.error('Error toggling like:', err);
+    }
+  };
+
+  const toggleComments = async (postId: string) => {
+    if (expandedPostId === postId) {
+      setExpandedPostId(null);
+    } else {
+      setExpandedPostId(postId);
+      // Fetch comments if not already loaded
+      if (!postComments[postId]) {
+        try {
+          const res = await api.getComments(postId);
+          if (res.success && res.data) {
+            setPostComments(prev => ({ ...prev, [postId]: res.data! }));
+          }
+        } catch (err) {
+          console.error('Error fetching comments:', err);
+        }
+      }
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      fetchPosts();
+      return;
+    }
+    try {
+      const res = await api.searchPosts(searchQuery);
+      if (res.success && res.data) {
+        setPosts(res.data);
+      }
+    } catch (err) {
+      console.error('Error searching:', err);
+    }
+  };
+
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} mins ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString();
+  };
+
+  // Loading state
+  if (authLoading || isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center gap-4">
+        <AlertCircle className="h-12 w-12 text-muted-foreground" />
+        <p className="text-muted-foreground">Please log in to access the community</p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full p-4 md:p-6 lg:p-8 flex flex-col items-center overflow-y-auto">
@@ -110,24 +190,43 @@ export default function CommunityPage() {
                         className="pl-9 bg-muted/20"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                     />
                 </div>
-                <Button variant="outline" size="icon" title="Trending">
+                <Button variant="outline" size="icon" title="Trending" onClick={async () => {
+                  try {
+                    const res = await api.getTrendingPosts();
+                    if (res.success && res.data) {
+                      setPosts(res.data);
+                    }
+                  } catch (err) {
+                    console.error('Error:', err);
+                  }
+                }}>
                     <Hash className="h-4 w-4" />
                 </Button>
             </div>
+
+            {error && (
+              <div className="bg-destructive/10 text-destructive p-4 rounded-lg flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                {error}
+              </div>
+            )}
 
             {/* Create Post */}
             <Card className="border shadow-sm bg-card w-full">
                 <CardContent className="p-4">
                     <div className="flex gap-4">
                         <Avatar>
-                            <AvatarFallback className="bg-primary/10 text-primary font-bold">ME</AvatarFallback>
+                            <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                              {(user?.nickname || user?.email || 'U')[0].toUpperCase()}
+                            </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 space-y-3">
-                            <Input 
+                            <Textarea 
                                 placeholder="What's on your mind? Share with the community..." 
-                                className="bg-muted/30 border-0 focus-visible:ring-1 min-h-[50px]"
+                                className="bg-muted/30 border-0 focus-visible:ring-1 min-h-[80px] resize-none"
                                 value={newPost}
                                 onChange={(e) => setNewPost(e.target.value)}
                             />
@@ -136,7 +235,8 @@ export default function CommunityPage() {
                                     <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">Image</Button>
                                     <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">Poll</Button>
                                 </div>
-                                <Button size="sm" onClick={handlePost} disabled={!newPost.trim()}>
+                                <Button size="sm" onClick={handlePost} disabled={!newPost.trim() || isPosting}>
+                                    {isPosting && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
                                     Post <Send className="ml-2 h-3 w-3" />
                                 </Button>
                             </div>
@@ -146,7 +246,14 @@ export default function CommunityPage() {
             </Card>
 
             {/* Posts Feed */}
-            <div className="space-y-4 w-full pb-8">
+            {posts.length === 0 ? (
+              <div className="text-center py-12">
+                <Users className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-xl font-semibold mb-2">No Posts Yet</h3>
+                <p className="text-muted-foreground">Be the first to share something with the community!</p>
+              </div>
+            ) : (
+              <div className="space-y-4 w-full pb-8">
                 {posts.map((post) => (
                     <Card 
                         key={post.id} 
@@ -158,11 +265,15 @@ export default function CommunityPage() {
                         <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 p-4">
                             <div className="flex gap-3">
                                 <Avatar className="h-10 w-10">
-                                    <AvatarFallback className="bg-slate-200 text-slate-600 font-bold">{post.author[0]}</AvatarFallback>
+                                    <AvatarFallback className="bg-slate-200 text-slate-600 font-bold">
+                                      {post.authorName[0].toUpperCase()}
+                                    </AvatarFallback>
                                 </Avatar>
                                 <div>
-                                    <h4 className="font-semibold text-sm hover:underline cursor-pointer">{post.author}</h4>
-                                    <p className="text-xs text-muted-foreground">{post.role} • {post.time}</p>
+                                    <h4 className="font-semibold text-sm hover:underline cursor-pointer">{post.authorName}</h4>
+                                    <p className="text-xs text-muted-foreground">
+                                      {post.authorRole && `${post.authorRole} • `}{formatTime(post.createdAt)}
+                                    </p>
                                 </div>
                             </div>
                             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -180,11 +291,11 @@ export default function CommunityPage() {
                                 <Button 
                                     variant="ghost" 
                                     size="sm" 
-                                    className={cn("gap-1.5 h-8 text-muted-foreground", post.liked && "text-red-500 hover:text-red-600")}
+                                    className={cn("gap-1.5 h-8 text-muted-foreground", post.isLiked && "text-red-500 hover:text-red-600")}
                                     onClick={(e) => toggleLike(e, post.id)}
                                 >
-                                    <Heart className={cn("h-4 w-4", post.liked && "fill-current")} /> 
-                                    <span className="text-xs">{post.likes}</span>
+                                    <Heart className={cn("h-4 w-4", post.isLiked && "fill-current")} /> 
+                                    <span className="text-xs">{post.likesCount}</span>
                                 </Button>
                                 <Button 
                                     variant="ghost" 
@@ -204,16 +315,18 @@ export default function CommunityPage() {
                             {expandedPostId === post.id && (
                                 <div className="w-full pt-4 animate-in slide-in-from-top-2 duration-200">
                                     <div className="space-y-4 mb-4 pl-2 border-l-2 border-muted">
-                                        {post.commentsCount > 0 ? (
-                                            MOCK_COMMENTS.map((comment) => (
+                                        {(postComments[post.id] || []).length > 0 ? (
+                                            postComments[post.id].map((comment) => (
                                                 <div key={comment.id} className="flex gap-3">
                                                     <Avatar className="h-6 w-6">
-                                                        <AvatarFallback className="bg-primary/10 text-primary text-[10px]">{comment.author[0]}</AvatarFallback>
+                                                        <AvatarFallback className="bg-primary/10 text-primary text-[10px]">
+                                                          {comment.authorName[0].toUpperCase()}
+                                                        </AvatarFallback>
                                                     </Avatar>
                                                     <div className="flex-1">
                                                         <div className="flex items-baseline gap-2">
-                                                            <span className="text-xs font-semibold">{comment.author}</span>
-                                                            <span className="text-[10px] text-muted-foreground">{comment.time}</span>
+                                                            <span className="text-xs font-semibold">{comment.authorName}</span>
+                                                            <span className="text-[10px] text-muted-foreground">{formatTime(comment.createdAt)}</span>
                                                         </div>
                                                         <p className="text-sm text-foreground/90">{comment.content}</p>
                                                     </div>
@@ -226,7 +339,9 @@ export default function CommunityPage() {
                                     
                                     <div className="flex gap-2">
                                         <Avatar className="h-8 w-8">
-                                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">ME</AvatarFallback>
+                                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                                              {(user?.nickname || user?.email || 'U')[0].toUpperCase()}
+                                            </AvatarFallback>
                                         </Avatar>
                                         <div className="flex-1 flex gap-2">
                                             <Input 
@@ -246,7 +361,8 @@ export default function CommunityPage() {
                         </CardFooter>
                     </Card>
                 ))}
-            </div>
+              </div>
+            )}
         </div>
     </div>
   );

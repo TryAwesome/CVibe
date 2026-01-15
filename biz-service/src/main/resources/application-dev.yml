@@ -1,0 +1,81 @@
+# Development Profile (uses H2 in-memory database, no Redis)
+spring:
+  # H2 In-Memory Database for quick testing
+  datasource:
+    url: jdbc:h2:mem:cvibe;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  # H2 Console
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true
+
+  # JPA for dev
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    show-sql: true
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        format_sql: true
+
+  # Disable Redis autoconfiguration
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+  # Disable Kafka
+  kafka:
+    bootstrap-servers: localhost:9092
+
+  # Flyway - use H2 compatible mode
+  flyway:
+    enabled: false  # Use JPA ddl-auto for dev
+
+# MinIO Configuration (Mock for dev)
+minio:
+  endpoint: http://localhost:9000
+  access-key: minioadmin
+  secret-key: minioadmin123
+  bucket-name: cvibe-dev
+
+# AI Engine gRPC
+grpc:
+  ai-engine:
+    host: localhost
+    port: 50051
+    deadline-ms: 30000
+
+# JWT Configuration
+jwt:
+  secret-key: dev-secret-key-for-testing-only-must-be-at-least-256-bits-long-for-hs256
+  access-token-expiration: 3600000
+  refresh-token-expiration: 604800000
+
+# Google OAuth (leave empty for dev)
+google:
+  client-id: ${GOOGLE_CLIENT_ID:}
+  client-secret: ${GOOGLE_CLIENT_SECRET:}
+
+# CORS Configuration
+cors:
+  allowed-origins: http://localhost:3000,http://127.0.0.1:3000
+  allowed-methods: GET,POST,PUT,DELETE,PATCH,OPTIONS
+  allowed-headers: "*"
+  allow-credentials: true
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.cvibe: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
