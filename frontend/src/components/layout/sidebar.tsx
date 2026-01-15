@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/contexts/auth-context";
 
 const sidebarItems = [
   {
@@ -66,8 +67,13 @@ const sidebarItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  // Mock admin status - in real app this comes from auth context/session
-  const isAdmin = true;
+  const { user, logout } = useAuth();
+  // Check admin status from user role
+  const isAdmin = user?.role === 'ADMIN';
+
+  const handleLogout = async () => {
+    await logout();
+  };
 
   return (
     <div className="flex h-screen w-64 flex-col border-r bg-card text-card-foreground">
@@ -109,8 +115,8 @@ export function Sidebar() {
                         <UserCircle className="h-5 w-5" />
                     </div>
                     <div className="flex-1 overflow-hidden text-left">
-                        <p className="truncate text-sm font-medium">Demo User</p>
-                        <p className="truncate text-xs text-muted-foreground">demo@cvibe.ai</p>
+                        <p className="truncate text-sm font-medium">{user?.nickname || 'User'}</p>
+                        <p className="truncate text-xs text-muted-foreground">{user?.email || ''}</p>
                     </div>
                 </Button>
             </DropdownMenuTrigger>
@@ -132,7 +138,10 @@ export function Sidebar() {
                     </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive focus:text-destructive cursor-pointer">
+                <DropdownMenuItem 
+                    className="text-destructive focus:text-destructive cursor-pointer"
+                    onClick={handleLogout}
+                >
                     <LogOut className="mr-2 h-4 w-4" />
                     Log out
                 </DropdownMenuItem>

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-type Language = "en" | "zh";
+type Language = "en";
 
 type LanguageContextType = {
   language: Language;
@@ -10,15 +10,16 @@ type LanguageContextType = {
   t: (key: string) => string;
 };
 
-const translations: Record<string, Record<Language, string>> = {
-  "Dashboard": { en: "Dashboard", zh: "仪表盘" },
-  "Interview": { en: "Interview", zh: "AI 访谈" },
-  "Resume Builder": { en: "Resume Builder", zh: "简历制作" },
-  "Job Recommendations": { en: "Job Recommendations", zh: "职位推荐" },
-  "Community": { en: "Community", zh: "社区" },
-  "Career Growth": { en: "Career Growth", zh: "职业成长" },
-  "Mock Interview": { en: "Mock Interview", zh: "模拟面试" },
-  "Settings": { en: "Settings", zh: "设置" },
+// English-only translations
+const translations: Record<string, string> = {
+  "Dashboard": "Dashboard",
+  "Interview": "Interview",
+  "Resume Builder": "Resume Builder",
+  "Job Recommendations": "Job Recommendations",
+  "Community": "Community",
+  "Career Growth": "Career Growth",
+  "Mock Interview": "Mock Interview",
+  "Settings": "Settings",
 };
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -38,7 +39,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, [language]);
 
   const t = (key: string) => {
-    return translations[key]?.[language] || key;
+    return translations[key] || key;
   };
 
   return (
