@@ -1,8 +1,8 @@
-# Development Profile (uses H2 in-memory database, no Redis)
+# Development Profile (uses H2 file-based database for data persistence)
 spring:
-  # H2 In-Memory Database for quick testing
+  # H2 File-Based Database for persistent data across restarts
   datasource:
-    url: jdbc:h2:mem:cvibe;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    url: jdbc:h2:file:./data/cvibe-dev;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;AUTO_SERVER=TRUE
     username: sa
     password:
     driver-class-name: org.h2.Driver
@@ -20,16 +20,16 @@ spring:
     database-platform: org.hibernate.dialect.H2Dialect
     show-sql: true
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     properties:
       hibernate:
         format_sql: true
     defer-datasource-initialization: true
 
-  # SQL initialization
+  # SQL initialization - only run if tables don't exist
   sql:
     init:
-      mode: always
+      mode: embedded
       data-locations: classpath:data-dev.sql
 
   # Disable Redis autoconfiguration

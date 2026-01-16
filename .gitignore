@@ -78,3 +78,6 @@ go.work
 
 # Root-only
 /package-lock.json
+
+# H2 Database files
+biz-service/data/

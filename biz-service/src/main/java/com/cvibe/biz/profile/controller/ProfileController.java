@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -43,6 +44,16 @@ public class ProfileController {
     }
 
     // ==================== Experience Management ====================
+
+    /**
+     * Get all experiences
+     */
+    @GetMapping("/experiences")
+    public ApiResponse<List<ExperienceDto>> getExperiences(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        List<ExperienceDto> experiences = profileService.getExperiences(principal.getId());
+        return ApiResponse.success(experiences);
+    }
 
     /**
      * Add experience
@@ -80,6 +91,16 @@ public class ProfileController {
     }
 
     // ==================== Skill Management ====================
+
+    /**
+     * Get all skills
+     */
+    @GetMapping("/skills")
+    public ApiResponse<List<SkillDto>> getSkills(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        List<SkillDto> skills = profileService.getSkills(principal.getId());
+        return ApiResponse.success(skills);
+    }
 
     /**
      * Add skill

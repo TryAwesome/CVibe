@@ -154,6 +154,34 @@ public class ProfileService {
     }
 
     /**
+     * Get all experiences for a user
+     */
+    @Transactional(readOnly = true)
+    public List<ExperienceDto> getExperiences(UUID userId) {
+        UserProfile profile = profileRepository.findByUserId(userId).orElse(null);
+        if (profile == null) {
+            return List.of();
+        }
+        return profile.getExperiences().stream()
+                .map(this::mapToExperienceDto)
+                .toList();
+    }
+
+    /**
+     * Get all skills for a user
+     */
+    @Transactional(readOnly = true)
+    public List<SkillDto> getSkills(UUID userId) {
+        UserProfile profile = profileRepository.findByUserId(userId).orElse(null);
+        if (profile == null) {
+            return List.of();
+        }
+        return profile.getSkills().stream()
+                .map(this::mapToSkillDto)
+                .toList();
+    }
+
+    /**
      * Add experience to profile
      */
     @Transactional

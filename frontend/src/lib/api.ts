@@ -632,12 +632,15 @@ export interface JobMatchSummary {
 export interface Resume {
   id: string;
   fileName: string;
+  originalName?: string;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
   isPrimary: boolean;
   skills: string[];
   parsedData?: object;
   createdAt: string;
   updatedAt: string;
+  downloadUrl?: string;  // Presigned URL for download
+  fileUrl?: string;      // Alias for downloadUrl (for backward compatibility)
 }
 
 export interface ResumeTemplate {
@@ -946,26 +949,34 @@ export interface Profile {
 }
 
 export interface Experience {
-  id: number;
-  type: 'education' | 'work' | 'award';
+  id: string;
+  company: string;
   title: string;
-  organization?: string;
-  startDate?: string;
+  location?: string;
+  employmentType?: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERNSHIP' | 'FREELANCE';
+  startDate: string;  // ISO date string
   endDate?: string;
+  isCurrent?: boolean;
   description?: string;
+  achievements?: string[];
+  technologies?: string[];
 }
 
 export interface AddExperienceRequest {
-  type: 'education' | 'work' | 'award';
+  company: string;
   title: string;
-  organization?: string;
-  startDate?: string;
+  location?: string;
+  employmentType?: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERNSHIP' | 'FREELANCE';
+  startDate: string;  // ISO date string (yyyy-MM-dd)
   endDate?: string;
+  isCurrent?: boolean;
   description?: string;
+  achievements?: string[];
+  technologies?: string[];
 }
 
 export interface Skill {
-  id: number;
+  id: string;
   name: string;
   level: string;
 }

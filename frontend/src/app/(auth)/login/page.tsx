@@ -47,7 +47,7 @@ export default function LoginPage() {
   return (
     <TiltWrapper className="w-[480px] max-w-[90vw]">
       <Card className="w-full border-0 bg-black/40 backdrop-blur-md shadow-2xl rounded-3xl text-white">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <CardHeader className="space-y-1 pb-6">
             <CardTitle className="text-2xl font-bold text-center tracking-tight text-white">
               Welcome Back

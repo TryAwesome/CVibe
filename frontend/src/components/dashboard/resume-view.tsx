@@ -146,20 +146,20 @@ export function ResumeView() {
           <CardTitle className="text-lg">
             Preview: {selectedResume?.fileName || "Not Selected"}
           </CardTitle>
-          {selectedResume?.fileUrl && (
+          {(selectedResume?.downloadUrl || selectedResume?.fileUrl) && (
             <Button 
               size="sm" 
               variant="ghost"
-              onClick={() => window.open(selectedResume.fileUrl, "_blank")}
+              onClick={() => window.open(selectedResume.downloadUrl || selectedResume.fileUrl, "_blank")}
             >
               <Eye className="h-4 w-4 mr-2" /> Full Screen
             </Button>
           )}
         </CardHeader>
         <CardContent className="flex-1 bg-muted/20 m-6 rounded-xl border-2 border-dashed border-muted-foreground/20 flex items-center justify-center">
-          {selectedResume?.fileUrl ? (
+          {(selectedResume?.downloadUrl || selectedResume?.fileUrl) ? (
             <iframe
-              src={selectedResume.fileUrl}
+              src={selectedResume.downloadUrl || selectedResume.fileUrl}
               className="w-full h-full min-h-[400px] rounded-lg"
               title="Resume Preview"
             />
