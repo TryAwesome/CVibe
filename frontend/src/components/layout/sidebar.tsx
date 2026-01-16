@@ -68,8 +68,8 @@ const sidebarItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
-  // Check admin status from user role
-  const isAdmin = user?.role === 'ADMIN';
+  // Check admin status from user role (backend returns ROLE_ADMIN or ROLE_USER)
+  const isAdmin = user?.role === 'ROLE_ADMIN';
 
   const handleLogout = async () => {
     await logout();

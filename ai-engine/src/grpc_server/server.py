@@ -11,7 +11,12 @@ from concurrent import futures
 # import grpc
 # from generated import ai_pb2, ai_pb2_grpc  # 由 proto 生成
 
-from ..llm import create_llm_client
+from ..llm import (
+    create_llm_client, 
+    create_vision_client,
+    get_default_llm_config,
+    get_default_vision_config,
+)
 from ..agents import (
     InterviewAgentWorkflow,
     ResumeBuilderAgentWorkflow,
@@ -38,11 +43,35 @@ class AIEngineService:
     def __init__(self):
         # 默认 LLM 客户端（用户可通过 API 传入自己的配置）
         self._default_llm = None
+        self._default_vision = None
         self._agents = {}
+        
+        # 初始化默认客户端（从环境变量）
+        self._init_default_clients()
+    
+    def _init_default_clients(self):
+        """从环境变量初始化默认客户端"""
+        llm_config = get_default_llm_config()
+        if llm_config:
+            self._default_llm = create_llm_client(
+                api_key=llm_config.api_key,
+                model=llm_config.model,
+                provider=llm_config.provider,
+                base_url=llm_config.base_url,
+            )
+        
+        vision_config = get_default_vision_config()
+        if vision_config:
+            self._default_vision = create_vision_client(
+                api_key=vision_config.api_key,
+                model=vision_config.model,
+                provider=vision_config.provider,
+                base_url=vision_config.base_url,
+            )
 
     def get_llm_client(self, user_config: dict = None):
         """获取 LLM 客户端（支持用户自定义）"""
-        if user_config:
+        if user_config and user_config.get("api_key"):
             return create_llm_client(
                 api_key=user_config.get("api_key"),
                 model=user_config.get("model", "gpt-4o"),
@@ -50,6 +79,17 @@ class AIEngineService:
                 base_url=user_config.get("base_url"),
             )
         return self._default_llm
+    
+    def get_vision_client(self, user_config: dict = None):
+        """获取视觉模型客户端（支持用户自定义）"""
+        if user_config and user_config.get("vision_api_key"):
+            return create_vision_client(
+                api_key=user_config.get("vision_api_key"),
+                model=user_config.get("vision_model", "gpt-4o"),
+                provider=user_config.get("vision_provider", "openai"),
+                base_url=user_config.get("vision_base_url"),
+            )
+        return self._default_vision
 
     # ================== Interview ==================
     

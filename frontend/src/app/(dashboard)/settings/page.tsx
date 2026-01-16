@@ -7,9 +7,30 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User, Lock, Cpu, Globe, Upload, Save, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { User, Lock, Cpu, Globe, Upload, Save, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2, ImageIcon, MessageSquare } from "lucide-react";
 import { api, AiConfig, User as UserType } from "@/lib/api";
 import { useAuth } from "@/lib/contexts/auth-context";
+
+// Model options for Language Models
+const LANGUAGE_MODELS = [
+  { value: "gpt-4o", label: "OpenAI GPT-4o", provider: "openai" },
+  { value: "gpt-4-turbo", label: "OpenAI GPT-4 Turbo", provider: "openai" },
+  { value: "gpt-3.5-turbo", label: "OpenAI GPT-3.5 Turbo", provider: "openai" },
+  { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet", provider: "anthropic" },
+  { value: "claude-3-opus-20240229", label: "Claude 3 Opus", provider: "anthropic" },
+  { value: "gemini-pro", label: "Google Gemini Pro", provider: "google" },
+  { value: "custom", label: "Custom Model", provider: "custom" },
+];
+
+// Model options for Vision Models
+const VISION_MODELS = [
+  { value: "gpt-4o", label: "OpenAI GPT-4o (Vision)", provider: "openai" },
+  { value: "gpt-4-turbo", label: "OpenAI GPT-4 Turbo (Vision)", provider: "openai" },
+  { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet (Vision)", provider: "anthropic" },
+  { value: "claude-3-opus-20240229", label: "Claude 3 Opus (Vision)", provider: "anthropic" },
+  { value: "gemini-pro-vision", label: "Google Gemini Pro Vision", provider: "google" },
+  { value: "custom", label: "Custom Vision Model", provider: "custom" },
+];
 
 export default function SettingsPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -26,11 +47,21 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   
-  // AI config state
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [aiProvider, setAiProvider] = useState("gpt-4");
-  const [apiKey, setApiKey] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
+  // Language Model config state
+  const [showLlmApiKey, setShowLlmApiKey] = useState(false);
+  const [llmModel, setLlmModel] = useState("gpt-4o");
+  const [llmProvider, setLlmProvider] = useState("openai");
+  const [llmApiKey, setLlmApiKey] = useState("");
+  const [llmBaseUrl, setLlmBaseUrl] = useState("");
+  
+  // Vision Model config state
+  const [showVisionApiKey, setShowVisionApiKey] = useState(false);
+  const [visionModel, setVisionModel] = useState("gpt-4o");
+  const [visionProvider, setVisionProvider] = useState("openai");
+  const [visionApiKey, setVisionApiKey] = useState("");
+  const [visionBaseUrl, setVisionBaseUrl] = useState("");
+  const [useSameAsLlm, setUseSameAsLlm] = useState(true);
+  
   const [aiConfig, setAiConfig] = useState<AiConfig | null>(null);
 
   // Load user data
@@ -52,11 +83,40 @@ export default function SettingsPage() {
       const res = await api.getAiConfig();
       if (res.success && res.data) {
         setAiConfig(res.data);
-        setAiProvider(res.data.provider || "gpt-4");
-        setApiKey(res.data.apiKey || "");
+        // Language Model
+        if (res.data.modelName) setLlmModel(res.data.modelName);
+        if (res.data.provider) setLlmProvider(res.data.provider);
+        if (res.data.apiKey) setLlmApiKey(res.data.apiKey);
+        if (res.data.baseUrl) setLlmBaseUrl(res.data.baseUrl);
+        // Vision Model
+        if (res.data.visionModelName) {
+          setVisionModel(res.data.visionModelName);
+          setUseSameAsLlm(false);
+        }
+        if (res.data.visionProvider) setVisionProvider(res.data.visionProvider);
+        if (res.data.visionApiKey) setVisionApiKey(res.data.visionApiKey);
+        if (res.data.visionBaseUrl) setVisionBaseUrl(res.data.visionBaseUrl);
       }
     } catch (err) {
       console.error('Error fetching AI config:', err);
+    }
+  };
+  
+  // Handle LLM model change
+  const handleLlmModelChange = (value: string) => {
+    setLlmModel(value);
+    const selected = LANGUAGE_MODELS.find(m => m.value === value);
+    if (selected) {
+      setLlmProvider(selected.provider);
+    }
+  };
+  
+  // Handle Vision model change
+  const handleVisionModelChange = (value: string) => {
+    setVisionModel(value);
+    const selected = VISION_MODELS.find(m => m.value === value);
+    if (selected) {
+      setVisionProvider(selected.provider);
     }
   };
 
@@ -116,11 +176,28 @@ export default function SettingsPage() {
     setSuccess(null);
     
     try {
-      const res = await api.updateAiConfig({
-        provider: aiProvider,
-        apiKey: apiKey,
-        model: aiProvider,
-      });
+      const config: any = {
+        // Language Model
+        provider: llmProvider,
+        modelName: llmModel,
+        apiKey: llmApiKey,
+        baseUrl: llmBaseUrl || undefined,
+      };
+      
+      // Vision Model (use same as LLM if checked)
+      if (useSameAsLlm) {
+        config.visionProvider = llmProvider;
+        config.visionModelName = llmModel;
+        config.visionApiKey = llmApiKey;
+        config.visionBaseUrl = llmBaseUrl || undefined;
+      } else {
+        config.visionProvider = visionProvider;
+        config.visionModelName = visionModel;
+        config.visionApiKey = visionApiKey;
+        config.visionBaseUrl = visionBaseUrl || undefined;
+      }
+      
+      const res = await api.updateAiConfig(config);
       if (res.success) {
         setSuccess("AI configuration saved successfully!");
         setAiConfig(res.data || null);
@@ -140,7 +217,17 @@ export default function SettingsPage() {
       const res = await api.deleteAiConfig();
       if (res.success) {
         setAiConfig(null);
-        setApiKey("");
+        // Reset Language Model
+        setLlmApiKey("");
+        setLlmBaseUrl("");
+        setLlmModel("gpt-4o");
+        setLlmProvider("openai");
+        // Reset Vision Model
+        setVisionApiKey("");
+        setVisionBaseUrl("");
+        setVisionModel("gpt-4o");
+        setVisionProvider("openai");
+        setUseSameAsLlm(true);
         setSuccess("AI configuration deleted");
       }
     } catch (err) {
@@ -304,81 +391,204 @@ export default function SettingsPage() {
 
         {/* AI CONFIGURATION TAB */}
         <TabsContent value="ai">
-          <Card>
-            <CardHeader>
-              <CardTitle>AI Model Configuration</CardTitle>
-              <CardDescription>
-                Customize the AI provider settings. Use your own API key for higher limits.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
+          <div className="space-y-6">
+            {/* Language Model Configuration */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5" />
+                  <CardTitle>Language Model Configuration</CardTitle>
+                </div>
+                <CardDescription>
+                  Configure the language model for text generation, chat, and analysis tasks.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="space-y-2">
-                    <Label>AI Provider / Model</Label>
-                    <select 
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      value={aiProvider}
-                      onChange={(e) => setAiProvider(e.target.value)}
-                    >
-                        <option value="gpt-4">OpenAI GPT-4 Turbo</option>
-                        <option value="gpt-3.5">OpenAI GPT-3.5 Turbo</option>
-                        <option value="gemini-pro">Google Gemini Pro</option>
-                        <option value="claude-3">Anthropic Claude 3 Opus</option>
-                        <option value="custom">Custom (Local LLM)</option>
-                    </select>
+                  <Label>Model</Label>
+                  <select 
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    value={llmModel}
+                    onChange={(e) => handleLlmModelChange(e.target.value)}
+                  >
+                    {LANGUAGE_MODELS.map(model => (
+                      <option key={model.value} value={model.value}>{model.label}</option>
+                    ))}
+                  </select>
                 </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="base-url">Custom Base URL (Optional)</Label>
+                {llmModel === "custom" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="llm-model-name">Custom Model Name</Label>
                     <Input 
-                      id="base-url" 
-                      placeholder="https://api.openai.com/v1"
-                      value={baseUrl}
-                      onChange={(e) => setBaseUrl(e.target.value)}
+                      id="llm-model-name" 
+                      placeholder="e.g., llama2, mistral, qwen2.5"
+                      value={llmModel === "custom" ? "" : llmModel}
+                      onChange={(e) => setLlmModel(e.target.value)}
                     />
-                    <p className="text-[10px] text-muted-foreground">Useful for proxies or local models (e.g., http://localhost:11434/v1).</p>
-                </div>
-
-                <div className="space-y-2">
-                    <Label htmlFor="api-key">API Key</Label>
-                    <div className="relative">
-                        <Input 
-                            id="api-key" 
-                            type={showApiKey ? "text" : "password"} 
-                            placeholder="sk-..." 
-                            value={apiKey}
-                            onChange={(e) => setApiKey(e.target.value)}
-                        />
-                        <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                            onClick={() => setShowApiKey(!showApiKey)}
-                        >
-                            {showApiKey ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
-                        </Button>
-                    </div>
-                </div>
-
-                {aiConfig && (
-                  <div className="p-3 bg-muted/50 rounded-lg">
-                    <p className="text-xs text-muted-foreground">
-                      Current config: {aiConfig.provider} • Configured on {new Date(aiConfig.createdAt).toLocaleDateString()}
-                    </p>
                   </div>
                 )}
-            </CardContent>
-            <CardFooter className="flex gap-2">
-              <Button onClick={handleSaveAiConfig} disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Configuration
-              </Button>
-              {aiConfig && (
-                <Button variant="outline" onClick={handleDeleteAiConfig} disabled={isLoading}>
-                  Delete Config
-                </Button>
-              )}
-            </CardFooter>
-          </Card>
+
+                <div className="space-y-2">
+                  <Label htmlFor="llm-base-url">Base URL (Optional)</Label>
+                  <Input 
+                    id="llm-base-url" 
+                    placeholder="https://api.openai.com/v1"
+                    value={llmBaseUrl}
+                    onChange={(e) => setLlmBaseUrl(e.target.value)}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    For proxies or local models (e.g., http://localhost:11434/v1 for Ollama)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="llm-api-key">API Key</Label>
+                  <div className="relative">
+                    <Input 
+                      id="llm-api-key" 
+                      type={showLlmApiKey ? "text" : "password"} 
+                      placeholder="sk-..." 
+                      value={llmApiKey}
+                      onChange={(e) => setLlmApiKey(e.target.value)}
+                    />
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowLlmApiKey(!showLlmApiKey)}
+                    >
+                      {showLlmApiKey ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Vision Model Configuration */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="h-5 w-5" />
+                  <CardTitle>Vision Model Configuration</CardTitle>
+                </div>
+                <CardDescription>
+                  Configure the vision model for image analysis (e.g., resume parsing from images).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="use-same-as-llm"
+                    checked={useSameAsLlm}
+                    onChange={(e) => setUseSameAsLlm(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor="use-same-as-llm" className="text-sm font-normal">
+                    Use same configuration as Language Model
+                  </Label>
+                </div>
+
+                {!useSameAsLlm && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Vision Model</Label>
+                      <select 
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        value={visionModel}
+                        onChange={(e) => handleVisionModelChange(e.target.value)}
+                      >
+                        {VISION_MODELS.map(model => (
+                          <option key={model.value} value={model.value}>{model.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {visionModel === "custom" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="vision-model-name">Custom Model Name</Label>
+                        <Input 
+                          id="vision-model-name" 
+                          placeholder="e.g., llava, bakllava"
+                          value={visionModel === "custom" ? "" : visionModel}
+                          onChange={(e) => setVisionModel(e.target.value)}
+                        />
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="vision-base-url">Base URL (Optional)</Label>
+                      <Input 
+                        id="vision-base-url" 
+                        placeholder="https://api.openai.com/v1"
+                        value={visionBaseUrl}
+                        onChange={(e) => setVisionBaseUrl(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="vision-api-key">API Key</Label>
+                      <div className="relative">
+                        <Input 
+                          id="vision-api-key" 
+                          type={showVisionApiKey ? "text" : "password"} 
+                          placeholder="sk-..." 
+                          value={visionApiKey}
+                          onChange={(e) => setVisionApiKey(e.target.value)}
+                        />
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          onClick={() => setShowVisionApiKey(!showVisionApiKey)}
+                        >
+                          {showVisionApiKey ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                        </Button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Config Status and Actions */}
+            <Card>
+              <CardContent className="pt-6">
+                {aiConfig && (
+                  <div className="p-3 bg-muted/50 rounded-lg mb-4">
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium">Language Model:</span> {aiConfig.provider} / {aiConfig.modelName}
+                      {aiConfig.configured && <span className="ml-2 text-green-600">✓ Configured</span>}
+                    </p>
+                    {aiConfig.visionConfigured && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        <span className="font-medium">Vision Model:</span> {aiConfig.visionProvider} / {aiConfig.visionModelName}
+                        <span className="ml-2 text-green-600">✓ Configured</span>
+                      </p>
+                    )}
+                    {aiConfig.updatedAt && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Last updated: {new Date(aiConfig.updatedAt).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveAiConfig} disabled={isLoading}>
+                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save Configuration
+                  </Button>
+                  {aiConfig && aiConfig.configured && (
+                    <Button variant="outline" onClick={handleDeleteAiConfig} disabled={isLoading}>
+                      Delete Config
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

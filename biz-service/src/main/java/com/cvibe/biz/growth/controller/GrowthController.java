@@ -21,7 +21,7 @@ import java.util.UUID;
  * REST API for career growth tracking, gap analysis, and learning paths.
  */
 @RestController
-@RequestMapping("/api/v1/growth")
+@RequestMapping("/v1/growth")
 @RequiredArgsConstructor
 @Tag(name = "Growth", description = "Career growth tracking and gap analysis APIs")
 public class GrowthController {

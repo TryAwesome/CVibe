@@ -84,16 +84,27 @@ export default function InterviewPage() {
   const startNewSession = async () => {
     try {
       setIsLoading(true);
-      const res = await api.createInterviewSession({ topic: "Profile Building" });
+      const res = await api.createInterviewSession({ sessionType: "INITIAL_PROFILE" });
       if (!res.success || !res.data) return;
-      const session = res.data;
+      const stateResponse = res.data;
+      const session = stateResponse.session;
       setSessions(prev => [session, ...prev]);
       setActiveSession(session);
+      
+      // If there's a current question from the backend, show it
+      const initialContent = stateResponse.currentQuestion?.question || 
+        "Hello! I'm your CVibe AI Assistant. My goal is to help you build a comprehensive profile database. Let's start with your **Education**. \n\nCould you tell me which university you attended and what was your major?";
+      
       setMessages([{
         id: 1,
         role: "ai",
-        content: "Hello! I'm your CVibe AI Assistant. My goal is to help you build a comprehensive profile database. Let's start with your **Education**. \n\nCould you tell me which university you attended and what was your major?",
+        content: initialContent,
+        questionId: stateResponse.currentQuestion?.id ? Number(stateResponse.currentQuestion.id) : undefined,
       }]);
+      
+      if (stateResponse.currentQuestion?.id) {
+        setCurrentQuestionId(Number(stateResponse.currentQuestion.id));
+      }
     } catch (error) {
       console.error("Failed to create session:", error);
     } finally {

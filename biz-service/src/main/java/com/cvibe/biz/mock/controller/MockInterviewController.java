@@ -21,7 +21,7 @@ import java.util.UUID;
  * REST API for mock interview practice sessions.
  */
 @RestController
-@RequestMapping("/api/v1/mock-interview")
+@RequestMapping("/v1/mock-interview")
 @RequiredArgsConstructor
 @Tag(name = "Mock Interview", description = "Mock interview practice and evaluation APIs")
 public class MockInterviewController {

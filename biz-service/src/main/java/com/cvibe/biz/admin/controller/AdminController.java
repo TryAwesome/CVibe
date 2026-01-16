@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/admin")
+@RequestMapping("/v1/admin")
 @RequiredArgsConstructor
 @Tag(name = "Admin", description = "管理后台 API")
 @PreAuthorize("hasRole('ADMIN')")

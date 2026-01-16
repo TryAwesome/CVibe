@@ -25,7 +25,7 @@ import java.util.UUID;
  * REST API endpoints for resume template management and resume generation.
  */
 @RestController
-@RequestMapping("/api/v1/resume-builder")
+@RequestMapping("/v1/resume-builder")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Resume Builder", description = "Resume template and generation APIs")
