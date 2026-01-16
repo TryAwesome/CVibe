@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/analytics")
+@RequestMapping("/v1/analytics")
 @RequiredArgsConstructor
 @Tag(name = "Analytics", description = "数据分析与洞察 API")
 public class AnalyticsController {

@@ -21,7 +21,7 @@ import java.util.UUID;
  * REST API for community features: posts, comments, likes, and follows.
  */
 @RestController
-@RequestMapping("/api/v1/community")
+@RequestMapping("/v1/community")
 @RequiredArgsConstructor
 @Tag(name = "Community", description = "Community features: posts, comments, likes, follows")
 public class CommunityController {

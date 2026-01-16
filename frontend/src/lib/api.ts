@@ -134,57 +134,57 @@ class ApiClient {
     if (params?.title) query.append('title', params.title);
     if (params?.company) query.append('company', params.company);
     if (params?.location) query.append('location', params.location);
-    return this.request<PagedResponse<Job>>(`/jobs?${query.toString()}`);
+    return this.request<PagedResponse<Job>>(`/v1/jobs?${query.toString()}`);
   }
 
   async getLatestJobs(): Promise<ApiResponse<Job[]>> {
-    return this.request<Job[]>('/jobs/latest');
+    return this.request<Job[]>('/v1/jobs/latest');
   }
 
   async getRemoteJobs(page?: number, size?: number): Promise<ApiResponse<PagedResponse<Job>>> {
     const query = new URLSearchParams();
     if (page) query.append('page', page.toString());
     if (size) query.append('size', size.toString());
-    return this.request<PagedResponse<Job>>(`/jobs/remote?${query.toString()}`);
+    return this.request<PagedResponse<Job>>(`/v1/jobs/remote?${query.toString()}`);
   }
 
   async getJobById(jobId: string): Promise<ApiResponse<Job>> {
-    return this.request<Job>(`/jobs/${jobId}`);
+    return this.request<Job>(`/v1/jobs/${jobId}`);
   }
 
   async generateJobMatches(): Promise<ApiResponse<void>> {
-    return this.request<void>('/jobs/matches/generate', { method: 'POST' });
+    return this.request<void>('/v1/jobs/matches/generate', { method: 'POST' });
   }
 
   async getJobMatches(page?: number, size?: number): Promise<ApiResponse<PagedResponse<JobMatch>>> {
     const query = new URLSearchParams();
     if (page) query.append('page', page.toString());
     if (size) query.append('size', size.toString());
-    return this.request<PagedResponse<JobMatch>>(`/jobs/matches?${query.toString()}`);
+    return this.request<PagedResponse<JobMatch>>(`/v1/jobs/matches?${query.toString()}`);
   }
 
   async getJobMatchSummary(): Promise<ApiResponse<JobMatchSummary>> {
-    return this.request<JobMatchSummary>('/jobs/matches/summary');
+    return this.request<JobMatchSummary>('/v1/jobs/matches/summary');
   }
 
   async viewJobMatch(matchId: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/jobs/matches/${matchId}/view`, { method: 'POST' });
+    return this.request<void>(`/v1/jobs/matches/${matchId}/view`, { method: 'POST' });
   }
 
   async saveJobMatch(matchId: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/jobs/matches/${matchId}/save`, { method: 'POST' });
+    return this.request<void>(`/v1/jobs/matches/${matchId}/save`, { method: 'POST' });
   }
 
   async applyToJob(matchId: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/jobs/matches/${matchId}/apply`, { method: 'POST' });
+    return this.request<void>(`/v1/jobs/matches/${matchId}/apply`, { method: 'POST' });
   }
 
   async getSavedJobs(): Promise<ApiResponse<JobMatch[]>> {
-    return this.request<JobMatch[]>('/jobs/saved');
+    return this.request<JobMatch[]>('/v1/jobs/saved');
   }
 
   async getAppliedJobs(): Promise<ApiResponse<JobMatch[]>> {
-    return this.request<JobMatch[]>('/jobs/applied');
+    return this.request<JobMatch[]>('/v1/jobs/applied');
   }
 
   // ==================== Resume API ====================
@@ -228,242 +228,242 @@ class ApiClient {
 
   // ==================== Resume Builder API ====================
   async getTemplates(): Promise<ApiResponse<ResumeTemplate[]>> {
-    return this.request<ResumeTemplate[]>('/resume-builder/templates');
+    return this.request<ResumeTemplate[]>('/v1/resume-builder/templates');
   }
 
   async getFeaturedTemplates(): Promise<ApiResponse<ResumeTemplate[]>> {
-    return this.request<ResumeTemplate[]>('/resume-builder/templates/featured');
+    return this.request<ResumeTemplate[]>('/v1/resume-builder/templates/featured');
   }
 
   async getTemplatesByCategory(category: string): Promise<ApiResponse<ResumeTemplate[]>> {
-    return this.request<ResumeTemplate[]>(`/resume-builder/templates/category/${category}`);
+    return this.request<ResumeTemplate[]>(`/v1/resume-builder/templates/category/${category}`);
   }
 
   async getMyTemplates(): Promise<ApiResponse<ResumeTemplate[]>> {
-    return this.request<ResumeTemplate[]>('/resume-builder/templates/my');
+    return this.request<ResumeTemplate[]>('/v1/resume-builder/templates/my');
   }
 
   async getTemplateContent(templateId: string): Promise<ApiResponse<{ latexTemplate: string }>> {
-    return this.request<{ latexTemplate: string }>(`/resume-builder/templates/${templateId}/content`);
+    return this.request<{ latexTemplate: string }>(`/v1/resume-builder/templates/${templateId}/content`);
   }
 
   async generateResume(request: GenerateResumeRequest): Promise<ApiResponse<ResumeGeneration>> {
-    return this.request<ResumeGeneration>('/resume-builder/generate', {
+    return this.request<ResumeGeneration>('/v1/resume-builder/generate', {
       method: 'POST',
       body: JSON.stringify(request),
     });
   }
 
   async getGenerations(): Promise<ApiResponse<ResumeGeneration[]>> {
-    return this.request<ResumeGeneration[]>('/resume-builder/generations');
+    return this.request<ResumeGeneration[]>('/v1/resume-builder/generations');
   }
 
   async getGenerationById(generationId: string): Promise<ApiResponse<ResumeGeneration>> {
-    return this.request<ResumeGeneration>(`/resume-builder/generations/${generationId}`);
+    return this.request<ResumeGeneration>(`/v1/resume-builder/generations/${generationId}`);
   }
 
   async updateGenerationLatex(generationId: string, latexContent: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/resume-builder/generations/${generationId}/latex`, {
+    return this.request<void>(`/v1/resume-builder/generations/${generationId}/latex`, {
       method: 'PUT',
       body: JSON.stringify({ latexContent }),
     });
   }
 
   async exportGeneration(generationId: string, format: 'pdf' | 'latex'): Promise<ApiResponse<{ downloadUrl: string }>> {
-    return this.request<{ downloadUrl: string }>(`/resume-builder/generations/${generationId}/export`, {
+    return this.request<{ downloadUrl: string }>(`/v1/resume-builder/generations/${generationId}/export`, {
       method: 'POST',
       body: JSON.stringify({ format }),
     });
   }
 
   // ==================== Interview API ====================
-  async createInterviewSession(request: CreateInterviewRequest): Promise<ApiResponse<InterviewSession>> {
-    return this.request<InterviewSession>('/interviews/sessions', {
+  async createInterviewSession(request: CreateInterviewRequest): Promise<ApiResponse<InterviewStateResponse>> {
+    return this.request<InterviewStateResponse>('/v1/interviews/sessions', {
       method: 'POST',
       body: JSON.stringify(request),
     });
   }
 
   async getInterviewSession(sessionId: string): Promise<ApiResponse<InterviewSession>> {
-    return this.request<InterviewSession>(`/interviews/sessions/${sessionId}`);
+    return this.request<InterviewSession>(`/v1/interviews/sessions/${sessionId}`);
   }
 
   async getInterviewSessions(): Promise<ApiResponse<InterviewSession[]>> {
-    return this.request<InterviewSession[]>('/interviews/sessions');
+    return this.request<InterviewSession[]>('/v1/interviews/sessions');
   }
 
   async submitAnswer(sessionId: string, answer: SubmitAnswerRequest): Promise<ApiResponse<AnswerFeedback>> {
-    return this.request<AnswerFeedback>(`/interviews/sessions/${sessionId}/answers`, {
+    return this.request<AnswerFeedback>(`/v1/interviews/sessions/${sessionId}/answers`, {
       method: 'POST',
       body: JSON.stringify(answer),
     });
   }
 
   async getAnswers(sessionId: string): Promise<ApiResponse<Answer[]>> {
-    return this.request<Answer[]>(`/interviews/sessions/${sessionId}/answers`);
+    return this.request<Answer[]>(`/v1/interviews/sessions/${sessionId}/answers`);
   }
 
   async pauseInterviewSession(sessionId: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/interviews/sessions/${sessionId}/pause`, { method: 'POST' });
+    return this.request<void>(`/v1/interviews/sessions/${sessionId}/pause`, { method: 'POST' });
   }
 
   async resumeInterviewSession(sessionId: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/interviews/sessions/${sessionId}/resume`, { method: 'POST' });
+    return this.request<void>(`/v1/interviews/sessions/${sessionId}/resume`, { method: 'POST' });
   }
 
   async deleteInterviewSession(sessionId: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/interviews/sessions/${sessionId}`, { method: 'DELETE' });
+    return this.request<void>(`/v1/interviews/sessions/${sessionId}`, { method: 'DELETE' });
   }
 
   // ==================== Mock Interview API ====================
   async startMockInterview(request: StartMockInterviewRequest): Promise<ApiResponse<MockInterview>> {
-    return this.request<MockInterview>('/mock-interviews/start', {
+    return this.request<MockInterview>('/v1/mock-interview/start', {
       method: 'POST',
       body: JSON.stringify(request),
     });
   }
 
   async getMockInterview(interviewId: string): Promise<ApiResponse<MockInterview>> {
-    return this.request<MockInterview>(`/mock-interviews/${interviewId}`);
+    return this.request<MockInterview>(`/v1/mock-interview/${interviewId}`);
   }
 
   async getMockInterviewHistory(): Promise<ApiResponse<MockInterview[]>> {
-    return this.request<MockInterview[]>('/mock-interviews/history');
+    return this.request<MockInterview[]>('/v1/mock-interview/history');
   }
 
   async getNextQuestion(interviewId: string): Promise<ApiResponse<MockQuestion>> {
-    return this.request<MockQuestion>(`/mock-interviews/${interviewId}/next-question`);
+    return this.request<MockQuestion>(`/v1/mock-interview/${interviewId}/next-question`);
   }
 
   async submitMockAnswer(interviewId: string, answer: SubmitMockAnswerRequest): Promise<ApiResponse<MockAnswerFeedback>> {
-    return this.request<MockAnswerFeedback>(`/mock-interviews/${interviewId}/answer`, {
+    return this.request<MockAnswerFeedback>(`/v1/mock-interview/${interviewId}/answer`, {
       method: 'POST',
       body: JSON.stringify(answer),
     });
   }
 
   async pauseMockInterview(interviewId: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/mock-interviews/${interviewId}/pause`, { method: 'POST' });
+    return this.request<void>(`/v1/mock-interview/${interviewId}/pause`, { method: 'POST' });
   }
 
   async resumeMockInterview(interviewId: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/mock-interviews/${interviewId}/resume`, { method: 'POST' });
+    return this.request<void>(`/v1/mock-interview/${interviewId}/resume`, { method: 'POST' });
   }
 
   async getMockInterviewSummary(): Promise<ApiResponse<MockInterviewSummary>> {
-    return this.request<MockInterviewSummary>('/mock-interviews/summary');
+    return this.request<MockInterviewSummary>('/v1/mock-interview/summary');
   }
 
   // ==================== Growth API ====================
   async createGoal(request: CreateGoalRequest): Promise<ApiResponse<GrowthGoal>> {
-    return this.request<GrowthGoal>('/growth/goals', {
+    return this.request<GrowthGoal>('/v1/growth/goals', {
       method: 'POST',
       body: JSON.stringify(request),
     });
   }
 
   async getGoals(): Promise<ApiResponse<GrowthGoal[]>> {
-    return this.request<GrowthGoal[]>('/growth/goals');
+    return this.request<GrowthGoal[]>('/v1/growth/goals');
   }
 
   async getGoalById(goalId: string): Promise<ApiResponse<GrowthGoal>> {
-    return this.request<GrowthGoal>(`/growth/goals/${goalId}`);
+    return this.request<GrowthGoal>(`/v1/growth/goals/${goalId}`);
   }
 
   async updateGoal(goalId: string, request: UpdateGoalRequest): Promise<ApiResponse<GrowthGoal>> {
-    return this.request<GrowthGoal>(`/growth/goals/${goalId}`, {
+    return this.request<GrowthGoal>(`/v1/growth/goals/${goalId}`, {
       method: 'PUT',
       body: JSON.stringify(request),
     });
   }
 
   async deleteGoal(goalId: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/growth/goals/${goalId}`, { method: 'DELETE' });
+    return this.request<void>(`/v1/growth/goals/${goalId}`, { method: 'DELETE' });
   }
 
   async analyzeGoal(goalId: string): Promise<ApiResponse<GapAnalysis>> {
-    return this.request<GapAnalysis>(`/growth/goals/${goalId}/analyze`, { method: 'POST' });
+    return this.request<GapAnalysis>(`/v1/growth/goals/${goalId}/analyze`, { method: 'POST' });
   }
 
   async getGaps(goalId: string): Promise<ApiResponse<SkillGap[]>> {
-    return this.request<SkillGap[]>(`/growth/goals/${goalId}/gaps`);
+    return this.request<SkillGap[]>(`/v1/growth/goals/${goalId}/gaps`);
   }
 
   async generateLearningPaths(goalId: string): Promise<ApiResponse<LearningPath[]>> {
-    return this.request<LearningPath[]>(`/growth/goals/${goalId}/generate-paths`, { method: 'POST' });
+    return this.request<LearningPath[]>(`/v1/growth/goals/${goalId}/generate-paths`, { method: 'POST' });
   }
 
   async getLearningPaths(goalId: string): Promise<ApiResponse<LearningPath[]>> {
-    return this.request<LearningPath[]>(`/growth/goals/${goalId}/paths`);
+    return this.request<LearningPath[]>(`/v1/growth/goals/${goalId}/paths`);
   }
 
   async completeMilestone(milestoneId: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/growth/milestones/${milestoneId}/complete`, { method: 'POST' });
+    return this.request<void>(`/v1/growth/milestones/${milestoneId}/complete`, { method: 'POST' });
   }
 
   async uncompleteMilestone(milestoneId: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/growth/milestones/${milestoneId}/uncomplete`, { method: 'POST' });
+    return this.request<void>(`/v1/growth/milestones/${milestoneId}/uncomplete`, { method: 'POST' });
   }
 
   async getGrowthSummary(): Promise<ApiResponse<GrowthSummary>> {
-    return this.request<GrowthSummary>('/growth/summary');
+    return this.request<GrowthSummary>('/v1/growth/summary');
   }
 
   // ==================== Community API ====================
   async createPost(request: CreatePostRequest): Promise<ApiResponse<Post>> {
-    return this.request<Post>('/community/posts', {
+    return this.request<Post>('/v1/community/posts', {
       method: 'POST',
       body: JSON.stringify(request),
     });
   }
 
   async getPost(postId: string): Promise<ApiResponse<Post>> {
-    return this.request<Post>(`/community/posts/${postId}`);
+    return this.request<Post>(`/v1/community/posts/${postId}`);
   }
 
   async updatePost(postId: string, request: UpdatePostRequest): Promise<ApiResponse<Post>> {
-    return this.request<Post>(`/community/posts/${postId}`, {
+    return this.request<Post>(`/v1/community/posts/${postId}`, {
       method: 'PUT',
       body: JSON.stringify(request),
     });
   }
 
   async deletePost(postId: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/community/posts/${postId}`, { method: 'DELETE' });
+    return this.request<void>(`/v1/community/posts/${postId}`, { method: 'DELETE' });
   }
 
   async getFeed(page?: number, size?: number): Promise<ApiResponse<PagedResponse<Post>>> {
     const query = new URLSearchParams();
     if (page) query.append('page', page.toString());
     if (size) query.append('size', size.toString());
-    return this.request<PagedResponse<Post>>(`/community/feed?${query.toString()}`);
+    return this.request<PagedResponse<Post>>(`/v1/community/feed?${query.toString()}`);
   }
 
   async getTrendingPosts(): Promise<ApiResponse<Post[]>> {
-    return this.request<Post[]>('/community/posts/trending');
+    return this.request<Post[]>('/v1/community/posts/trending');
   }
 
   async searchPosts(keyword: string): Promise<ApiResponse<Post[]>> {
-    return this.request<Post[]>(`/community/posts/search?keyword=${encodeURIComponent(keyword)}`);
+    return this.request<Post[]>(`/v1/community/posts/search?keyword=${encodeURIComponent(keyword)}`);
   }
 
   async createComment(postId: string, request: CreateCommentRequest): Promise<ApiResponse<Comment>> {
-    return this.request<Comment>(`/community/posts/${postId}/comments`, {
+    return this.request<Comment>(`/v1/community/posts/${postId}/comments`, {
       method: 'POST',
       body: JSON.stringify(request),
     });
   }
 
   async getComments(postId: string): Promise<ApiResponse<Comment[]>> {
-    return this.request<Comment[]>(`/community/posts/${postId}/comments`);
+    return this.request<Comment[]>(`/v1/community/posts/${postId}/comments`);
   }
 
   async likePost(postId: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/community/posts/${postId}/like`, { method: 'POST' });
+    return this.request<void>(`/v1/community/posts/${postId}/like`, { method: 'POST' });
   }
 
   async unlikePost(postId: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/community/posts/${postId}/like`, { method: 'DELETE' });
+    return this.request<void>(`/v1/community/posts/${postId}/like`, { method: 'DELETE' });
   }
 
   // ==================== Settings API ====================
@@ -669,19 +669,44 @@ export interface GenerateResumeRequest {
 // Interview types
 export interface InterviewSession {
   id: string;
-  company: string;
-  position: string;
-  status: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'active' | 'paused' | 'completed';
-  questionsAnswered: number;
-  totalQuestions: number;
+  sessionType: string;
+  status: string;
+  currentQuestionIndex?: number;
+  totalQuestions?: number;
+  focusArea?: string;
+  targetRole?: string;
+  extractionStatus?: string;
+  startedAt?: string;
+  lastActivityAt?: string;
+  completedAt?: string;
+  answeredCount?: number;
+  progressPercentage?: number;
+}
+
+export interface InterviewStateResponse {
+  session: InterviewSession;
+  currentQuestion?: InterviewAnswerDto;
+  answeredQuestions?: InterviewAnswerDto[];
+  hasMoreQuestions: boolean;
+  sessionCompleted: boolean;
+  nextAction: string;
+}
+
+export interface InterviewAnswerDto {
+  id: string;
+  questionId?: string;
+  question?: string;
+  answer?: string;
+  category?: string;
   score?: number;
-  createdAt: string;
+  feedback?: string;
 }
 
 export interface CreateInterviewRequest {
-  company: string;
-  position: string;
-  difficulty?: 'EASY' | 'MEDIUM' | 'HARD';
+  sessionType: string;  // INITIAL_PROFILE, DEEP_DIVE, etc.
+  focusArea?: string;   // e.g., "WORK_EXPERIENCE", "SKILLS"
+  targetRole?: string;  // e.g., "Software Engineer"
+  language?: string;    // default "en"
 }
 
 export interface SubmitAnswerRequest {
@@ -877,16 +902,34 @@ export interface UpdateProfileRequest {
 }
 
 export interface AiConfig {
+  // Language Model
   provider: string;
   apiKey?: string;
-  model?: string;
-  createdAt: string;
+  modelName?: string;
+  baseUrl?: string;
+  configured: boolean;
+  // Vision Model
+  visionProvider?: string;
+  visionApiKey?: string;
+  visionModelName?: string;
+  visionBaseUrl?: string;
+  visionConfigured?: boolean;
+  // Metadata
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface UpdateAiConfigRequest {
-  provider: string;
-  apiKey: string;
-  model?: string;
+  // Language Model
+  provider?: string;
+  apiKey?: string;
+  modelName?: string;
+  baseUrl?: string;
+  // Vision Model
+  visionProvider?: string;
+  visionApiKey?: string;
+  visionModelName?: string;
+  visionBaseUrl?: string;
 }
 
 // Profile types

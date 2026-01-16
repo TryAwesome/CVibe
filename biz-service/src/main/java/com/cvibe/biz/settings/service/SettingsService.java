@@ -12,6 +12,7 @@ import com.cvibe.common.exception.BusinessException;
 import com.cvibe.common.response.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,33 @@ public class SettingsService {
     private final UserRepository userRepository;
     private final UserAiConfigRepository aiConfigRepository;
     private final PasswordEncoder passwordEncoder;
+    
+    // ============ Environment Variables for Default AI Config ============
+    // Language Model defaults
+    @Value("${ai.llm.provider:}")
+    private String defaultLlmProvider;
+    
+    @Value("${ai.llm.api-key:}")
+    private String defaultLlmApiKey;
+    
+    @Value("${ai.llm.model:gpt-4o}")
+    private String defaultLlmModel;
+    
+    @Value("${ai.llm.base-url:}")
+    private String defaultLlmBaseUrl;
+    
+    // Vision Model defaults
+    @Value("${ai.vision.provider:}")
+    private String defaultVisionProvider;
+    
+    @Value("${ai.vision.api-key:}")
+    private String defaultVisionApiKey;
+    
+    @Value("${ai.vision.model:gpt-4o}")
+    private String defaultVisionModel;
+    
+    @Value("${ai.vision.base-url:}")
+    private String defaultVisionBaseUrl;
 
     /**
      * Change user password
@@ -101,11 +129,93 @@ public class SettingsService {
 
     /**
      * Get AI configuration
+     * Priority: User config > Environment variables
      */
     @Transactional(readOnly = true)
     public AiConfigDto getAiConfig(UUID userId) {
         UserAiConfig config = aiConfigRepository.findByUserId(userId).orElse(null);
-        return AiConfigDto.fromEntity(config);
+        AiConfigDto dto = AiConfigDto.fromEntity(config);
+        
+        // Apply environment variable defaults if user hasn't configured
+        if (!dto.isConfigured() && hasEnvLlmConfig()) {
+            dto.setProvider(defaultLlmProvider);
+            dto.setModelName(defaultLlmModel);
+            dto.setBaseUrl(defaultLlmBaseUrl);
+            dto.setApiKey(maskApiKey(defaultLlmApiKey));
+            dto.setConfigured(true);
+        }
+        
+        if (!dto.isVisionConfigured() && hasEnvVisionConfig()) {
+            dto.setVisionProvider(defaultVisionProvider);
+            dto.setVisionModelName(defaultVisionModel);
+            dto.setVisionBaseUrl(defaultVisionBaseUrl);
+            dto.setVisionApiKey(maskApiKey(defaultVisionApiKey));
+            dto.setVisionConfigured(true);
+        }
+        
+        return dto;
+    }
+    
+    /**
+     * Get effective AI config for AI Engine (returns actual API keys)
+     * Priority: User config > Environment variables
+     */
+    @Transactional(readOnly = true)
+    public AiConfigDto getEffectiveAiConfig(UUID userId) {
+        UserAiConfig config = aiConfigRepository.findByUserId(userId).orElse(null);
+        
+        AiConfigDto.AiConfigDtoBuilder builder = AiConfigDto.builder();
+        
+        // Language Model config
+        if (config != null && config.isConfigured()) {
+            builder.provider(config.getProvider())
+                   .modelName(config.getModelName())
+                   .baseUrl(config.getBaseUrl())
+                   .apiKey(config.getApiKeyEncrypted()) // Actual key for AI engine
+                   .configured(true);
+        } else if (hasEnvLlmConfig()) {
+            builder.provider(defaultLlmProvider)
+                   .modelName(defaultLlmModel)
+                   .baseUrl(defaultLlmBaseUrl)
+                   .apiKey(defaultLlmApiKey) // Actual key from env
+                   .configured(true);
+        } else {
+            builder.configured(false);
+        }
+        
+        // Vision Model config
+        if (config != null && config.isVisionConfigured()) {
+            builder.visionProvider(config.getVisionProvider())
+                   .visionModelName(config.getVisionModelName())
+                   .visionBaseUrl(config.getVisionBaseUrl())
+                   .visionApiKey(config.getVisionApiKeyEncrypted()) // Actual key
+                   .visionConfigured(true);
+        } else if (hasEnvVisionConfig()) {
+            builder.visionProvider(defaultVisionProvider)
+                   .visionModelName(defaultVisionModel)
+                   .visionBaseUrl(defaultVisionBaseUrl)
+                   .visionApiKey(defaultVisionApiKey) // Actual key from env
+                   .visionConfigured(true);
+        } else {
+            builder.visionConfigured(false);
+        }
+        
+        return builder.build();
+    }
+    
+    private boolean hasEnvLlmConfig() {
+        return defaultLlmApiKey != null && !defaultLlmApiKey.isEmpty();
+    }
+    
+    private boolean hasEnvVisionConfig() {
+        return defaultVisionApiKey != null && !defaultVisionApiKey.isEmpty();
+    }
+    
+    private String maskApiKey(String apiKey) {
+        if (apiKey == null || apiKey.length() <= 8) {
+            return "****";
+        }
+        return apiKey.substring(0, 4) + "****" + apiKey.substring(apiKey.length() - 4);
     }
 
     /**
@@ -121,12 +231,11 @@ public class SettingsService {
                         .user(user)
                         .build());
 
-        // Update fields
+        // Update Language Model fields
         if (request.getBaseUrl() != null) {
             config.setBaseUrl(request.getBaseUrl().trim());
         }
         if (request.getApiKey() != null && !request.getApiKey().contains("****")) {
-            // Only update if it's not the masked value
             config.setApiKeyEncrypted(encryptApiKey(request.getApiKey()));
         }
         if (request.getModelName() != null) {
@@ -134,6 +243,20 @@ public class SettingsService {
         }
         if (request.getProvider() != null) {
             config.setProvider(request.getProvider().trim());
+        }
+        
+        // Update Vision Model fields
+        if (request.getVisionBaseUrl() != null) {
+            config.setVisionBaseUrl(request.getVisionBaseUrl().trim());
+        }
+        if (request.getVisionApiKey() != null && !request.getVisionApiKey().contains("****")) {
+            config.setVisionApiKeyEncrypted(encryptApiKey(request.getVisionApiKey()));
+        }
+        if (request.getVisionModelName() != null) {
+            config.setVisionModelName(request.getVisionModelName().trim());
+        }
+        if (request.getVisionProvider() != null) {
+            config.setVisionProvider(request.getVisionProvider().trim());
         }
 
         config = aiConfigRepository.save(config);

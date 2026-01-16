@@ -44,7 +44,7 @@ public class UserAiConfig {
     private String apiKeyEncrypted;
 
     /**
-     * Model name (e.g., gpt-4, gpt-3.5-turbo)
+     * Language Model name (e.g., gpt-4, gpt-3.5-turbo)
      */
     @Column(name = "model_name", length = 100)
     private String modelName;
@@ -55,6 +55,32 @@ public class UserAiConfig {
     @Column(name = "provider", length = 50)
     private String provider;
 
+    // ============ Vision Model Configuration ============
+    
+    /**
+     * Vision Model base URL (can be different from language model)
+     */
+    @Column(name = "vision_base_url")
+    private String visionBaseUrl;
+    
+    /**
+     * Vision Model API Key (encrypted at rest)
+     */
+    @Column(name = "vision_api_key_encrypted")
+    private String visionApiKeyEncrypted;
+    
+    /**
+     * Vision Model name (e.g., gpt-4o, gemini-pro-vision)
+     */
+    @Column(name = "vision_model_name", length = 100)
+    private String visionModelName;
+    
+    /**
+     * Vision Model provider type
+     */
+    @Column(name = "vision_provider", length = 50)
+    private String visionProvider;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -64,11 +90,18 @@ public class UserAiConfig {
     private Instant updatedAt;
 
     /**
-     * Check if AI config is properly set up
+     * Check if Language Model config is properly set up
      */
     public boolean isConfigured() {
-        return baseUrl != null && !baseUrl.isEmpty()
-                && apiKeyEncrypted != null && !apiKeyEncrypted.isEmpty()
+        return apiKeyEncrypted != null && !apiKeyEncrypted.isEmpty()
                 && modelName != null && !modelName.isEmpty();
+    }
+    
+    /**
+     * Check if Vision Model config is properly set up
+     */
+    public boolean isVisionConfigured() {
+        return visionApiKeyEncrypted != null && !visionApiKeyEncrypted.isEmpty()
+                && visionModelName != null && !visionModelName.isEmpty();
     }
 }

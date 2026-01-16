@@ -23,7 +23,7 @@ import java.util.UUID;
  * REST API endpoints for job search, matching, and user interactions.
  */
 @RestController
-@RequestMapping("/api/v1/jobs")
+@RequestMapping("/v1/jobs")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Job Matching", description = "Job search and matching APIs")
