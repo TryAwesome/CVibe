@@ -1,341 +1,794 @@
 """
-gRPC Server - AI Engine 服务入口
+AI Engine gRPC Service - 完整实现
 ================================================================================
 
-提供 gRPC 接口供 Java biz-service 调用
+实现 ai_engine.proto 定义的所有 RPC 方法
 """
 
-import asyncio
+import logging
 from concurrent import futures
+from typing import Iterator, Optional
+import json
+import uuid
 
-# import grpc
-# from generated import ai_pb2, ai_pb2_grpc  # 由 proto 生成
+import grpc
 
+# 导入生成的 proto 代码
+try:
+    from ..generated import ai_engine_pb2 as pb
+    from ..generated import ai_engine_pb2_grpc as pb_grpc
+except ImportError:
+    # 开发时可能还未生成
+    pb = None
+    pb_grpc = None
+
+from ..config import settings
 from ..llm import (
-    create_llm_client, 
+    LLMClient, 
+    VisionClient,
+    create_llm_client,
     create_vision_client,
     get_default_llm_config,
     get_default_vision_config,
 )
-from ..agents import (
-    InterviewAgentWorkflow,
-    ResumeBuilderAgentWorkflow,
-    MockInterviewAgentWorkflow,
-    JobRecommenderAgentWorkflow,
-    GrowthAdvisorAgentWorkflow,
-    ResumeParser,
-)
+from ..agents.resume.parser import ResumeParser, ParsedResume
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
-class AIEngineService:
-    """
-    AI Engine gRPC 服务
+# ================== Session Store ==================
+
+class SessionStore:
+    """简单的内存会话存储（生产环境应使用 Redis）"""
     
-    提供以下服务：
-    - Interview: 背景采集面试
-    - ResumeBuilder: 简历构建
-    - MockInterview: 模拟面试
-    - JobRecommender: 职位推荐
-    - GrowthAdvisor: 成长规划
-    - ResumeParser: 简历解析
-    """
+    def __init__(self):
+        self._sessions: dict = {}
+    
+    def get(self, session_id: str) -> Optional[dict]:
+        return self._sessions.get(session_id)
+    
+    def set(self, session_id: str, data: dict):
+        self._sessions[session_id] = data
+    
+    def delete(self, session_id: str):
+        self._sessions.pop(session_id, None)
+    
+    def update(self, session_id: str, **kwargs):
+        if session_id in self._sessions:
+            self._sessions[session_id].update(kwargs)
+
+
+session_store = SessionStore()
+
+
+# ================== AI Engine Service ==================
+
+class AIEngineServicer:
+    """AI Engine gRPC 服务实现"""
 
     def __init__(self):
-        # 默认 LLM 客户端（用户可通过 API 传入自己的配置）
-        self._default_llm = None
-        self._default_vision = None
-        self._agents = {}
-        
-        # 初始化默认客户端（从环境变量）
+        # 初始化默认 LLM 客户端
+        self._default_llm: Optional[LLMClient] = None
+        self._default_vision: Optional[VisionClient] = None
         self._init_default_clients()
     
     def _init_default_clients(self):
         """从环境变量初始化默认客户端"""
         llm_config = get_default_llm_config()
         if llm_config:
-            self._default_llm = create_llm_client(
-                api_key=llm_config.api_key,
-                model=llm_config.model,
-                provider=llm_config.provider,
-                base_url=llm_config.base_url,
-            )
+            self._default_llm = LLMClient(llm_config)
+            logger.info(f"Default LLM initialized: {llm_config.provider}/{llm_config.model}")
         
         vision_config = get_default_vision_config()
         if vision_config:
-            self._default_vision = create_vision_client(
-                api_key=vision_config.api_key,
-                model=vision_config.model,
-                provider=vision_config.provider,
-                base_url=vision_config.base_url,
-            )
+            self._default_vision = VisionClient(vision_config)
+            logger.info(f"Default Vision model initialized: {vision_config.provider}/{vision_config.model}")
 
-    def get_llm_client(self, user_config: dict = None):
-        """获取 LLM 客户端（支持用户自定义）"""
+    def _get_llm(self, user_config: Optional[dict] = None) -> Optional[LLMClient]:
+        """获取 LLM 客户端"""
         if user_config and user_config.get("api_key"):
             return create_llm_client(
-                api_key=user_config.get("api_key"),
+                api_key=user_config["api_key"],
                 model=user_config.get("model", "gpt-4o"),
                 provider=user_config.get("provider", "openai"),
                 base_url=user_config.get("base_url"),
             )
         return self._default_llm
+
+    # ================== Resume Parsing ==================
     
-    def get_vision_client(self, user_config: dict = None):
-        """获取视觉模型客户端（支持用户自定义）"""
-        if user_config and user_config.get("vision_api_key"):
-            return create_vision_client(
-                api_key=user_config.get("vision_api_key"),
-                model=user_config.get("vision_model", "gpt-4o"),
-                provider=user_config.get("vision_provider", "openai"),
-                base_url=user_config.get("vision_base_url"),
+    def ParseResume(self, request, context):
+        """解析简历文件"""
+        logger.info(f"ParseResume: file={request.file_name}, type={request.file_type}")
+        
+        try:
+            parser = ResumeParser(
+                llm_client=self._default_llm,
+                vision_client=self._default_vision
             )
-        return self._default_vision
+            
+            file_bytes = bytes(request.file_content)
+            file_type = request.file_type.lower()
+            
+            if "pdf" in file_type:
+                result = parser.parse_pdf_bytes(file_bytes)
+            elif "image" in file_type or file_type in ["jpg", "jpeg", "png"]:
+                result = parser.parse_image(file_bytes)
+            else:
+                # 尝试作为文本处理
+                text = file_bytes.decode('utf-8', errors='ignore')
+                result = parser.parse_text(text)
+            
+            # 构建响应
+            resume_data = pb.ResumeData(
+                name=result.name,
+                email=result.email,
+                phone=result.phone,
+                summary=result.summary,
+                skills=result.skills,
+                raw_text=result.raw_text,
+            )
+            
+            # 添加经历
+            for exp in result.work_experience:
+                resume_data.experiences.append(pb.ExperienceData(
+                    company=exp.get("company", ""),
+                    title=exp.get("title", ""),
+                    start_date=exp.get("start_date", ""),
+                    end_date=exp.get("end_date", ""),
+                    description=exp.get("description", ""),
+                    is_current=exp.get("is_current", False),
+                ))
+            
+            # 添加教育
+            for edu in result.education:
+                resume_data.educations.append(pb.EducationData(
+                    school=edu.get("school", ""),
+                    degree=edu.get("degree", ""),
+                    field=edu.get("field", ""),
+                    start_date=edu.get("start_date", ""),
+                    end_date=edu.get("end_date", ""),
+                ))
+            
+            return pb.ParseResumeResponse(
+                success=True,
+                data=resume_data,
+            )
+            
+        except Exception as e:
+            logger.error(f"ParseResume error: {e}")
+            return pb.ParseResumeResponse(
+                success=False,
+                error_message=str(e),
+            )
 
-    # ================== Interview ==================
+    # ================== Resume Building ==================
     
-    def start_interview(self, session_id: str, user_id: str, llm_config: dict = None):
-        """开始面试"""
-        llm = self.get_llm_client(llm_config)
-        agent = InterviewAgentWorkflow(llm)
-        context, question = agent.start_session(session_id, user_id)
-        self._agents[session_id] = {"agent": agent, "context": context}
-        return {"session_id": session_id, "question": question}
-
-    def submit_interview_answer(self, session_id: str, answer: str):
-        """提交面试回答"""
-        session = self._agents.get(session_id)
-        if not session:
-            return {"error": "Session not found"}
+    def BuildResume(self, request, context) -> Iterator:
+        """构建简历（流式输出）"""
+        logger.info(f"BuildResume: user={request.user_id}, job={request.job_title}")
         
-        agent = session["agent"]
-        context = session["context"]
-        context, question, data = agent.process_answer(context, answer)
-        session["context"] = context
+        llm = self._get_llm()
+        if not llm:
+            yield pb.BuildResumeChunk(
+                section="error",
+                content="LLM not configured",
+                is_final=True
+            )
+            return
         
-        return {"question": question, "extracted_data": data}
+        # 构建 prompt
+        profile = request.profile
+        prompt = f"""请为以下求职者生成一份针对性的简历内容。
 
-    def end_interview(self, session_id: str):
-        """结束面试"""
-        session = self._agents.get(session_id)
-        if not session:
-            return {"error": "Session not found"}
+目标职位: {request.job_title}
+职位描述: {request.job_description}
+语言: {"中文" if request.language == "zh" else "英文"}
+
+求职者信息:
+- 姓名: {profile.name}
+- 当前职位: {profile.title}
+- 个人简介: {profile.summary}
+- 技能: {', '.join(profile.skills)}
+
+请分段生成以下部分:
+1. summary - 个人简介（针对目标职位优化）
+2. experience - 工作经历（突出相关经验）
+3. skills - 技能列表（匹配职位要求）
+4. education - 教育背景
+
+每个部分用 [SECTION:xxx] 标记开始。"""
+
+        messages = [
+            {"role": "system", "content": "你是一个专业的简历优化专家。"},
+            {"role": "user", "content": prompt}
+        ]
         
-        result = session["agent"].end_session(session["context"])
-        del self._agents[session_id]
-        return result
+        current_section = "summary"
+        try:
+            for chunk in llm.stream_chat(messages):
+                # 检测 section 标记
+                if "[SECTION:" in chunk:
+                    parts = chunk.split("[SECTION:")
+                    for part in parts:
+                        if "]" in part:
+                            new_section = part.split("]")[0].lower()
+                            current_section = new_section
+                            content = part.split("]", 1)[1] if "]" in part else ""
+                            if content:
+                                yield pb.BuildResumeChunk(
+                                    section=current_section,
+                                    content=content,
+                                    is_final=False
+                                )
+                        elif part:
+                            yield pb.BuildResumeChunk(
+                                section=current_section,
+                                content=part,
+                                is_final=False
+                            )
+                else:
+                    yield pb.BuildResumeChunk(
+                        section=current_section,
+                        content=chunk,
+                        is_final=False
+                    )
+            
+            yield pb.BuildResumeChunk(
+                section="complete",
+                content="",
+                is_final=True
+            )
+        except Exception as e:
+            logger.error(f"BuildResume error: {e}")
+            yield pb.BuildResumeChunk(
+                section="error",
+                content=str(e),
+                is_final=True
+            )
 
-    # ================== Resume Builder ==================
+    # ================== AI Interview ==================
     
-    def build_resume(
-        self, 
-        user_profile: dict, 
-        target_hc: dict, 
-        template_id: str,
-        llm_config: dict = None,
-    ):
-        """构建简历"""
-        llm = self.get_llm_client(llm_config)
-        agent = ResumeBuilderAgentWorkflow(llm)
+    def StartInterview(self, request, context):
+        """开始 AI 面试会话"""
+        logger.info(f"StartInterview: session={request.session_id}, job={request.job_title}")
         
-        # 解析 HC
-        criteria = agent.parse_hiring_criteria(target_hc.get("raw_jd", ""))
+        llm = self._get_llm()
+        if not llm:
+            return pb.StartInterviewResponse(
+                success=False,
+            )
         
-        # 生成简历
-        content = agent.generate_resume_content(user_profile, criteria, template_id)
+        # 生成欢迎消息和第一个问题
+        config = request.config
+        language = "中文" if config.language == "zh" else "English"
+        difficulty = config.difficulty or "medium"
         
-        return {
-            "latex_content": content.latex_content,
-            "sections": content.sections,
-            "highlighted_skills": content.highlighted_skills,
-        }
+        system_prompt = f"""你是一位专业的面试官，正在为候选人进行模拟面试。
+
+职位: {request.job_title}
+职位描述: {request.job_description}
+
+候选人简历概要:
+{request.resume_content[:2000]}
+
+面试设置:
+- 语言: {language}
+- 难度: {difficulty}
+- 重点领域: {', '.join(config.focus_areas) if config.focus_areas else '综合'}
+
+请用{language}进行面试。每次只问一个问题，根据候选人的回答进行追问或切换话题。
+保持专业、友好的态度。"""
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": "请开始面试。"}
+        ]
+        
+        try:
+            response = llm.chat(messages)
+            
+            # 存储会话
+            session_store.set(request.session_id, {
+                "type": "interview",
+                "user_id": request.user_id,
+                "job_title": request.job_title,
+                "system_prompt": system_prompt,
+                "messages": messages + [{"role": "assistant", "content": response}],
+                "config": {
+                    "language": config.language,
+                    "difficulty": difficulty,
+                }
+            })
+            
+            # 分离欢迎语和问题
+            parts = response.split("\n\n", 1)
+            welcome = parts[0] if len(parts) > 1 else "欢迎参加面试！"
+            question = parts[1] if len(parts) > 1 else response
+            
+            return pb.StartInterviewResponse(
+                success=True,
+                welcome_message=welcome,
+                first_question=question,
+            )
+        except Exception as e:
+            logger.error(f"StartInterview error: {e}")
+            return pb.StartInterviewResponse(
+                success=False,
+            )
+
+    def SendInterviewMessage(self, request, context) -> Iterator:
+        """发送面试消息（流式响应）"""
+        logger.info(f"SendInterviewMessage: session={request.session_id}")
+        
+        session = session_store.get(request.session_id)
+        if not session:
+            yield pb.MessageChunk(
+                content="Session not found",
+                is_final=True
+            )
+            return
+        
+        llm = self._get_llm()
+        if not llm:
+            yield pb.MessageChunk(
+                content="LLM not configured",
+                is_final=True
+            )
+            return
+        
+        # 添加用户消息到历史
+        messages = session["messages"]
+        messages.append({"role": "user", "content": request.user_message})
+        
+        try:
+            full_response = ""
+            for chunk in llm.stream_chat(messages):
+                full_response += chunk
+                yield pb.MessageChunk(
+                    content=chunk,
+                    is_final=False
+                )
+            
+            # 更新会话
+            messages.append({"role": "assistant", "content": full_response})
+            session_store.update(request.session_id, messages=messages)
+            
+            yield pb.MessageChunk(
+                content="",
+                is_final=True
+            )
+        except Exception as e:
+            logger.error(f"SendInterviewMessage error: {e}")
+            yield pb.MessageChunk(
+                content=str(e),
+                is_final=True
+            )
 
     # ================== Mock Interview ==================
     
-    def start_mock_interview(
-        self,
-        session_id: str,
-        user_id: str,
-        interview_type: str,
-        user_resume: dict = None,
-        llm_config: dict = None,
-    ):
+    def StartMockInterview(self, request, context):
         """开始模拟面试"""
-        from ..agents.mockinterview import MockInterviewType
+        logger.info(f"StartMockInterview: session={request.session_id}, type={request.interview_type}")
         
-        llm = self.get_llm_client(llm_config)
-        agent = MockInterviewAgentWorkflow(llm)
+        llm = self._get_llm()
+        if not llm:
+            return pb.StartMockResponse(success=False)
         
-        type_enum = MockInterviewType(interview_type)
-        context, message = agent.start_session(session_id, user_id, type_enum, user_resume)
-        self._agents[f"mock_{session_id}"] = {"agent": agent, "context": context}
+        # 根据类型生成问题
+        interview_type = request.interview_type or "MIXED"
+        question_count = min(max(request.question_count, 3), 10)
+        language = "中文" if request.language == "zh" else "English"
         
-        return {"session_id": session_id, "message": message}
+        prompt = f"""请为以下职位生成 {question_count} 个面试问题：
 
-    def submit_mock_answer(self, session_id: str, answer: str):
-        """提交模拟面试回答"""
-        session = self._agents.get(f"mock_{session_id}")
-        if not session:
-            return {"error": "Session not found"}
-        
-        agent = session["agent"]
-        context = session["context"]
-        context, message, evaluation = agent.process_answer(context, answer)
-        session["context"] = context
-        
-        return {"message": message, "evaluation": evaluation}
+职位: {request.job_title}
+面试类型: {interview_type}
+语言: {language}
 
-    def end_mock_interview(self, session_id: str):
-        """结束模拟面试"""
-        session = self._agents.get(f"mock_{session_id}")
-        if not session:
-            return {"error": "Session not found"}
-        
-        result = session["agent"].end_session(session["context"])
-        del self._agents[f"mock_{session_id}"]
-        return result
+请按以下 JSON 格式输出：
+[
+    {{"question": "问题内容", "category": "technical/behavioral/situational", "time_limit": 120}}
+]"""
 
-    # ================== Job Recommender ==================
-    
-    def recommend_jobs(
-        self,
-        user_profile: dict,
-        jobs: list,
-        top_k: int = 10,
-        llm_config: dict = None,
-    ):
-        """推荐职位"""
-        from ..agents.job import UserProfile, JobPosting
-        
-        llm = self.get_llm_client(llm_config)
-        agent = JobRecommenderAgentWorkflow(llm)
-        
-        # 转换数据格式
-        profile = UserProfile(
-            user_id=user_profile.get("user_id", ""),
-            skills=user_profile.get("skills", []),
-            experience_years=user_profile.get("experience_years", 0),
-            target_roles=user_profile.get("target_roles", []),
-        )
-        
-        job_postings = [
-            JobPosting(
-                id=j.get("id", ""),
-                title=j.get("title", ""),
-                company=j.get("company", ""),
-                location=j.get("location", ""),
-                required_skills=j.get("required_skills", []),
-                source_url=j.get("source_url", ""),
-            )
-            for j in jobs
+        messages = [
+            {"role": "system", "content": "你是面试问题生成专家。"},
+            {"role": "user", "content": prompt}
         ]
         
-        matches = agent.match_jobs(profile, job_postings, top_k)
-        
-        return {
-            "recommendations": [
-                {
-                    "job_id": m.job.id,
-                    "title": m.job.title,
-                    "company": m.job.company,
-                    "match_score": m.match_score,
-                    "matched_skills": m.matched_skills,
-                    "missing_skills": m.missing_skills,
-                    "recommendation_text": m.recommendation_text,
-                    "source_url": m.job.source_url,
-                }
-                for m in matches
-            ]
-        }
+        try:
+            response = llm.chat(messages)
+            
+            # 解析问题
+            try:
+                if "```json" in response:
+                    json_str = response.split("```json")[1].split("```")[0]
+                elif "```" in response:
+                    json_str = response.split("```")[1].split("```")[0]
+                else:
+                    json_str = response
+                questions = json.loads(json_str.strip())
+            except:
+                # 使用默认问题
+                questions = [
+                    {"question": "请介绍一下你自己", "category": "behavioral", "time_limit": 120},
+                    {"question": "你最大的优势是什么？", "category": "behavioral", "time_limit": 90},
+                    {"question": "描述一个你克服困难的经历", "category": "situational", "time_limit": 180},
+                ]
+            
+            # 存储会话
+            session_store.set(request.session_id, {
+                "type": "mock_interview",
+                "user_id": request.user_id,
+                "job_title": request.job_title,
+                "interview_type": interview_type,
+                "questions": questions,
+                "current_index": 0,
+                "answers": [],
+                "evaluations": [],
+            })
+            
+            return pb.StartMockResponse(
+                success=True,
+                session_id=request.session_id,
+                total_questions=len(questions),
+            )
+        except Exception as e:
+            logger.error(f"StartMockInterview error: {e}")
+            return pb.StartMockResponse(success=False)
 
-    # ================== Growth Advisor ==================
+    def GetNextQuestion(self, request, context):
+        """获取下一个问题"""
+        session = session_store.get(request.session_id)
+        if not session:
+            return pb.QuestionResponse(question_index=-1, question="Session not found")
+        
+        questions = session.get("questions", [])
+        index = request.question_index
+        
+        if index >= len(questions):
+            return pb.QuestionResponse(question_index=-1, question="No more questions")
+        
+        q = questions[index]
+        return pb.QuestionResponse(
+            question_index=index,
+            question=q.get("question", ""),
+            category=q.get("category", "general"),
+            time_limit_seconds=q.get("time_limit", 120),
+        )
+
+    def EvaluateAnswer(self, request, context):
+        """评估答案"""
+        session = session_store.get(request.session_id)
+        if not session:
+            return pb.EvaluationResponse(score=0, feedback="Session not found")
+        
+        llm = self._get_llm()
+        if not llm:
+            return pb.EvaluationResponse(score=50, feedback="LLM not configured")
+        
+        prompt = f"""请评估以下面试回答：
+
+问题: {request.question}
+回答: {request.answer_text}
+
+请给出:
+1. 分数 (0-100)
+2. 详细反馈
+3. 优点 (列表)
+4. 改进建议 (列表)
+
+以 JSON 格式输出：
+{{"score": 80, "feedback": "...", "strengths": ["...", "..."], "improvements": ["...", "..."]}}"""
+
+        messages = [
+            {"role": "system", "content": "你是面试评估专家。"},
+            {"role": "user", "content": prompt}
+        ]
+        
+        try:
+            response = llm.chat(messages)
+            
+            # 解析响应
+            try:
+                if "```json" in response:
+                    json_str = response.split("```json")[1].split("```")[0]
+                else:
+                    json_str = response
+                data = json.loads(json_str.strip())
+            except:
+                data = {"score": 70, "feedback": response, "strengths": [], "improvements": []}
+            
+            # 存储评估结果
+            session["answers"].append(request.answer_text)
+            session["evaluations"].append(data)
+            session_store.set(request.session_id, session)
+            
+            return pb.EvaluationResponse(
+                score=data.get("score", 70),
+                feedback=data.get("feedback", ""),
+                strengths=data.get("strengths", []),
+                improvements=data.get("improvements", []),
+            )
+        except Exception as e:
+            logger.error(f"EvaluateAnswer error: {e}")
+            return pb.EvaluationResponse(score=50, feedback=str(e))
+
+    def FinishMockInterview(self, request, context):
+        """结束模拟面试，生成报告"""
+        session = session_store.get(request.session_id)
+        if not session:
+            return pb.MockReportResponse(overall_score=0)
+        
+        evaluations = session.get("evaluations", [])
+        questions = session.get("questions", [])
+        answers = session.get("answers", [])
+        
+        # 计算总分
+        total_score = sum(e.get("score", 0) for e in evaluations)
+        overall_score = int(total_score / len(evaluations)) if evaluations else 0
+        
+        # 生成结果
+        results = []
+        for i, (q, a, e) in enumerate(zip(questions, answers, evaluations)):
+            results.append(pb.QuestionResult(
+                index=i,
+                question=q.get("question", ""),
+                answer=a,
+                score=e.get("score", 0),
+                feedback=e.get("feedback", ""),
+            ))
+        
+        # 生成建议
+        recommendations = []
+        for e in evaluations:
+            recommendations.extend(e.get("improvements", []))
+        recommendations = list(set(recommendations))[:5]
+        
+        # 清理会话
+        session_store.delete(request.session_id)
+        
+        return pb.MockReportResponse(
+            overall_score=overall_score,
+            overall_feedback=f"面试完成！总分: {overall_score}/100",
+            results=results,
+            recommendations=recommendations,
+        )
+
+    # ================== Growth - Gap Analysis ==================
     
-    def analyze_growth_gap(
-        self,
-        user_profile: dict,
-        target_hc: dict,
-        llm_config: dict = None,
-    ):
-        """分析成长差距"""
-        llm = self.get_llm_client(llm_config)
-        agent = GrowthAdvisorAgentWorkflow(llm)
+    def AnalyzeGap(self, request, context):
+        """分析技能差距"""
+        logger.info(f"AnalyzeGap: user={request.user_id}, goal={request.goal_title}")
         
-        gaps = agent.analyze_gap(user_profile, target_hc)
+        llm = self._get_llm()
+        if not llm:
+            return pb.GapAnalysisResponse(readiness_score=0)
         
-        return {
-            "gaps": [
-                {
-                    "skill": g.skill_name,
-                    "current_level": g.current_level,
-                    "required_level": g.required_level,
-                    "gap": g.gap,
-                    "priority": g.priority,
-                    "resources": g.learning_resources,
-                }
-                for g in gaps
+        profile = request.current_profile
+        prompt = f"""请分析以下求职者与目标职位的差距：
+
+目标职位: {request.goal_title}
+目标日期: {request.target_date}
+
+当前情况:
+- 职位: {profile.title}
+- 技能: {', '.join(profile.skills)}
+
+请分析:
+1. 技能差距（每个技能的当前水平和所需水平）
+2. 准备度评分 (0-100)
+3. 改进建议
+
+以 JSON 格式输出：
+{{
+    "gaps": [
+        {{"skill": "技能名", "current_level": "NONE/BASIC/INTERMEDIATE/ADVANCED", "required_level": "...", "priority": 1-5}}
+    ],
+    "recommendations": ["建议1", "建议2"],
+    "readiness_score": 65
+}}"""
+
+        messages = [
+            {"role": "system", "content": "你是职业发展顾问。"},
+            {"role": "user", "content": prompt}
+        ]
+        
+        try:
+            response = llm.chat(messages)
+            
+            # 解析响应
+            try:
+                if "```json" in response:
+                    json_str = response.split("```json")[1].split("```")[0]
+                else:
+                    json_str = response
+                data = json.loads(json_str.strip())
+            except:
+                data = {"gaps": [], "recommendations": [response], "readiness_score": 50}
+            
+            # 构建响应
+            gaps = [
+                pb.GapItem(
+                    skill=g.get("skill", ""),
+                    current_level=g.get("current_level", "BASIC"),
+                    required_level=g.get("required_level", "ADVANCED"),
+                    priority=g.get("priority", 3),
+                )
+                for g in data.get("gaps", [])
             ]
-        }
+            
+            return pb.GapAnalysisResponse(
+                gaps=gaps,
+                recommendations=data.get("recommendations", []),
+                readiness_score=data.get("readiness_score", 50),
+            )
+        except Exception as e:
+            logger.error(f"AnalyzeGap error: {e}")
+            return pb.GapAnalysisResponse(readiness_score=0)
 
-    def generate_learning_path(
-        self,
-        user_profile: dict,
-        target_hc: dict,
-        hours_per_week: int = 10,
-        llm_config: dict = None,
-    ):
-        """生成学习路径"""
-        llm = self.get_llm_client(llm_config)
-        agent = GrowthAdvisorAgentWorkflow(llm)
-        
-        path = agent.generate_learning_path(user_profile, target_hc, hours_per_week)
-        
-        return {
-            "target_role": path.target_role,
-            "target_company": path.target_company,
-            "total_duration": path.total_duration,
-            "milestones": [
-                {
-                    "id": m.id,
-                    "title": m.title,
-                    "description": m.description,
-                    "skills": m.skills_covered,
-                    "time": m.estimated_time,
-                    "resources": m.resources,
-                    "deliverables": m.deliverables,
-                }
-                for m in path.milestones
-            ],
-        }
-
-    # ================== Resume Parser ==================
+    # ================== Growth - Learning Path ==================
     
-    def parse_resume_pdf(self, pdf_path: str, llm_config: dict = None):
-        """解析 PDF 简历"""
-        llm = self.get_llm_client(llm_config)
-        parser = ResumeParser(llm)
+    def GenerateLearningPath(self, request, context) -> Iterator:
+        """生成学习路径（流式）"""
+        logger.info(f"GenerateLearningPath: user={request.user_id}, goal={request.goal_id}")
         
-        result = parser.parse_pdf(pdf_path)
+        llm = self._get_llm()
+        if not llm:
+            yield pb.LearningPathChunk(phase="error", content="LLM not configured", is_final=True)
+            return
         
-        return {
-            "name": result.name,
-            "email": result.email,
-            "phone": result.phone,
-            "education": result.education,
-            "work_experience": result.work_experience,
-            "projects": result.projects,
-            "skills": result.skills,
-            "achievements": result.achievements,
-        }
+        gaps = [f"{g.skill}: {g.current_level} -> {g.required_level}" for g in request.gaps]
+        
+        prompt = f"""请为以下技能差距生成详细的学习路径：
+
+技能差距:
+{chr(10).join(gaps)}
+
+学习偏好: {request.preferred_style or 'MIXED'}
+
+请分阶段输出学习计划，每个阶段包含：
+- 阶段名称
+- 学习目标
+- 具体资源和行动
+- 预计时间
+
+用 [PHASE:阶段名] 标记每个阶段的开始。"""
+
+        messages = [
+            {"role": "system", "content": "你是学习规划专家。"},
+            {"role": "user", "content": prompt}
+        ]
+        
+        current_phase = "overview"
+        try:
+            for chunk in llm.stream_chat(messages):
+                if "[PHASE:" in chunk:
+                    parts = chunk.split("[PHASE:")
+                    for part in parts:
+                        if "]" in part:
+                            phase_name = part.split("]")[0]
+                            current_phase = phase_name
+                            content = part.split("]", 1)[1] if "]" in part else ""
+                            if content:
+                                yield pb.LearningPathChunk(
+                                    phase=current_phase,
+                                    content=content,
+                                    is_final=False
+                                )
+                        elif part:
+                            yield pb.LearningPathChunk(
+                                phase=current_phase,
+                                content=part,
+                                is_final=False
+                            )
+                else:
+                    yield pb.LearningPathChunk(
+                        phase=current_phase,
+                        content=chunk,
+                        is_final=False
+                    )
+            
+            yield pb.LearningPathChunk(
+                phase="complete",
+                content="",
+                is_final=True
+            )
+        except Exception as e:
+            logger.error(f"GenerateLearningPath error: {e}")
+            yield pb.LearningPathChunk(
+                phase="error",
+                content=str(e),
+                is_final=True
+            )
+
+    # ================== Job Analysis ==================
+    
+    def AnalyzeJob(self, request, context):
+        """分析职位"""
+        logger.info(f"AnalyzeJob: job={request.job_title}")
+        
+        llm = self._get_llm()
+        if not llm:
+            return pb.JobAnalysisResponse()
+        
+        prompt = f"""请分析以下职位信息：
+
+职位: {request.job_title}
+公司: {request.company}
+描述: {request.job_description}
+
+请提取：
+1. 必需技能
+2. 加分技能
+3. 经验级别
+4. 预估薪资范围
+5. 面试准备建议
+
+以 JSON 格式输出：
+{{
+    "required_skills": ["..."],
+    "nice_to_have_skills": ["..."],
+    "experience_level": "entry/mid/senior/lead",
+    "salary_estimate": "$xxx - $xxx",
+    "interview_tips": ["..."]
+}}"""
+
+        messages = [
+            {"role": "system", "content": "你是职位分析专家。"},
+            {"role": "user", "content": prompt}
+        ]
+        
+        try:
+            response = llm.chat(messages)
+            
+            try:
+                if "```json" in response:
+                    json_str = response.split("```json")[1].split("```")[0]
+                else:
+                    json_str = response
+                data = json.loads(json_str.strip())
+            except:
+                data = {}
+            
+            return pb.JobAnalysisResponse(
+                required_skills=data.get("required_skills", []),
+                nice_to_have_skills=data.get("nice_to_have_skills", []),
+                experience_level=data.get("experience_level", "mid"),
+                salary_estimate=data.get("salary_estimate", ""),
+                interview_tips=data.get("interview_tips", []),
+            )
+        except Exception as e:
+            logger.error(f"AnalyzeJob error: {e}")
+            return pb.JobAnalysisResponse()
 
 
-def serve(port: int = 50051):
-    """启动 gRPC 服务"""
-    # TODO: 实际启动 gRPC 服务
-    # server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    # ai_pb2_grpc.add_AIEngineServicer_to_server(AIEngineService(), server)
-    # server.add_insecure_port(f'[::]:{port}')
-    # server.start()
-    # server.wait_for_termination()
-    print(f"AI Engine gRPC server would start on port {port}")
+# ================== Server Entry Point ==================
+
+def serve(port: int = None):
+    """启动 gRPC 服务器"""
+    port = port or settings.grpc_port
+    
+    if pb_grpc is None:
+        logger.error("Proto files not generated. Run generate_proto.sh first.")
+        return
+    
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=settings.grpc_max_workers)
+    )
+    pb_grpc.add_AIEngineServicer_to_server(AIEngineServicer(), server)
+    
+    server.add_insecure_port(f'[::]:{port}')
+    server.start()
+    
+    logger.info(f"AI Engine gRPC server started on port {port}")
+    
+    try:
+        server.wait_for_termination()
+    except KeyboardInterrupt:
+        logger.info("Shutting down...")
+        server.stop(0)
 
 
 if __name__ == "__main__":

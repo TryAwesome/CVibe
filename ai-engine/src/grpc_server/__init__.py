@@ -1,5 +1,5 @@
 """gRPC Server Module"""
 
-from .server import AIEngineService, serve
+from .server import AIEngineServicer, serve
 
-__all__ = ["AIEngineService", "serve"]
+__all__ = ["AIEngineServicer", "serve"]

@@ -1,7 +1,9 @@
 package com.cvibe.common.security;
 
-import com.cvibe.biz.user.entity.User;
-import lombok.Getter;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -11,33 +13,25 @@ import java.util.Collections;
 import java.util.UUID;
 
 /**
- * Custom UserDetails implementation for Spring Security
+ * Custom UserDetails implementation for Spring Security.
+ * Represents the authenticated user in the security context.
  */
-@Getter
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class UserPrincipal implements UserDetails {
 
-    private final UUID id;
-    private final String email;
-    private final String password;
-    private final String fullName;
-    private final User.UserRole role;
-    private final boolean enabled;
-    private final Collection<? extends GrantedAuthority> authorities;
+    private UUID id;
+    private String email;
+    private String password;
+    private String nickname;
+    private String role;
+    private boolean enabled;
 
-    public UserPrincipal(User user) {
-        this.id = user.getId();
-        this.email = user.getEmail();
-        this.password = user.getPasswordHash();
-        this.fullName = user.getFullName();
-        this.role = user.getRole();
-        this.enabled = user.getEnabled();
-        this.authorities = Collections.singletonList(
-                new SimpleGrantedAuthority(user.getRole().name())
-        );
-    }
-
-    public static UserPrincipal create(User user) {
-        return new UserPrincipal(user);
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return Collections.singletonList(new SimpleGrantedAuthority(role));
     }
 
     @Override
@@ -52,7 +46,7 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return enabled;
+        return true;
     }
 
     @Override
@@ -66,9 +60,9 @@ public class UserPrincipal implements UserDetails {
     }
 
     /**
-     * Check if user is admin
+     * Get user ID for service layer usage
      */
-    public boolean isAdmin() {
-        return User.UserRole.ROLE_ADMIN.equals(this.role);
+    public UUID getUserId() {
+        return id;
     }
 }

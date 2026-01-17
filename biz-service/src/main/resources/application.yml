@@ -1,7 +1,5 @@
 server:
   port: 8080
-  servlet:
-    context-path: /api
 
 spring:
   application:
@@ -75,6 +73,17 @@ ai:
     api-key: ${AI_VISION_API_KEY:}
     model: ${AI_VISION_MODEL:gpt-4o}
     base-url: ${AI_VISION_BASE_URL:}
+
+# gRPC Services Configuration
+grpc:
+  ai-engine:
+    host: ${AI_ENGINE_HOST:localhost}
+    port: ${AI_ENGINE_PORT:50051}
+    enabled: ${AI_ENGINE_ENABLED:false}
+  search-service:
+    host: ${SEARCH_SERVICE_HOST:localhost}
+    port: ${SEARCH_SERVICE_PORT:50052}
+    enabled: ${SEARCH_SERVICE_ENABLED:false}
 
 # CORS Configuration
 cors:

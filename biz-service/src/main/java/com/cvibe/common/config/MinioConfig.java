@@ -1,25 +1,30 @@
 package com.cvibe.common.config;
 
 import io.minio.MinioClient;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * MinIO Configuration
+ * MinIO 配置类
  */
 @Configuration
 @ConfigurationProperties(prefix = "minio")
-@Getter
-@Setter
+@Data
 public class MinioConfig {
 
     private String endpoint;
     private String accessKey;
     private String secretKey;
-    private String bucketName;
+    private Bucket bucket = new Bucket();
+
+    @Data
+    public static class Bucket {
+        private String resumes = "cvibe-resumes";
+        private String images = "cvibe-images";
+        private String templates = "cvibe-templates";
+    }
 
     @Bean
     public MinioClient minioClient() {

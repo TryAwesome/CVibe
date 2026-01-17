@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Zen_Dots } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const zenDots = Zen_Dots({ weight: "400", subsets: ["latin"], variable: "--font-zen-dots" });
@@ -30,6 +31,7 @@ export default function RootLayout({
           >
             <AuthProvider>
               {children}
+              <Toaster richColors position="top-right" />
             </AuthProvider>
           </ThemeProvider>
       </body>

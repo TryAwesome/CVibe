@@ -1,75 +1,76 @@
-# Development Profile (uses H2 in-memory database, no Redis)
+# Development Profile - uses Docker PostgreSQL + Redis
 spring:
-  # H2 In-Memory Database for quick testing
+  # PostgreSQL Configuration
   datasource:
-    url: jdbc:h2:mem:cvibe;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
+    url: jdbc:postgresql://localhost:5432/cvibe
+    username: cvibe
+    password: cvibe123
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
 
-  # H2 Console
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-      settings:
-        web-allow-others: true
+  # Redis Configuration
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
-  # JPA for dev
+  # Kafka Configuration
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: cvibe-biz-service
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+  # JPA - use update for development
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
-    show-sql: true
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
+    show-sql: true
     properties:
       hibernate:
         format_sql: true
-    defer-datasource-initialization: true
 
-  # SQL initialization
-  sql:
-    init:
-      mode: always
-      data-locations: classpath:data-dev.sql
-
-  # Disable Redis autoconfiguration
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
-      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
-
-  # Disable Kafka
-  kafka:
-    bootstrap-servers: localhost:9092
-
-  # Flyway - use H2 compatible mode
+  # Flyway - disabled for dev, use JPA auto-update
   flyway:
-    enabled: false  # Use JPA ddl-auto for dev
+    enabled: false
 
-# MinIO Configuration (Mock for dev)
+# MinIO Configuration
 minio:
   endpoint: http://localhost:9000
   access-key: minioadmin
   secret-key: minioadmin123
   bucket-name: cvibe-dev
 
-# AI Engine gRPC
+# gRPC services - enabled for development testing
 grpc:
   ai-engine:
     host: localhost
     port: 50051
     deadline-ms: 30000
+    enabled: true
+  search-service:
+    host: localhost
+    port: 50052
+    deadline-ms: 30000
+    enabled: true
 
 # JWT Configuration
 jwt:
-  secret-key: dev-secret-key-for-testing-only-must-be-at-least-256-bits-long-for-hs256
-  access-token-expiration: 3600000
-  refresh-token-expiration: 604800000
+  secret: dev-secret-key-for-testing-only-must-be-at-least-256-bits-long-for-hs256
+  access-token-expiration: 3600000      # 1 hour
+  refresh-token-expiration: 604800000   # 7 days
 
 # Google OAuth (leave empty for dev)
 google:
-  client-id: ${GOOGLE_CLIENT_ID:}
-  client-secret: ${GOOGLE_CLIENT_SECRET:}
+  oauth2:
+    client-id: ${GOOGLE_CLIENT_ID:}
+    client-secret: ${GOOGLE_CLIENT_SECRET:}
 
 # CORS Configuration
 cors:
@@ -78,11 +79,12 @@ cors:
   allowed-headers: "*"
   allow-credentials: true
 
-# Logging
+# Logging - verbose for development
 logging:
   level:
     root: INFO
     com.cvibe: DEBUG
+    org.springframework.web: DEBUG
     org.springframework.security: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE

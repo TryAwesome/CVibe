@@ -1,0 +1,272 @@
+// AI Engine gRPC Service Definition
+// This file is the single source of truth for ai-engine API
+// Copy to: biz-service/src/main/proto/, ai-engine/proto/
+
+syntax = "proto3";
+
+package cvibe.ai;
+
+option java_package = "com.cvibe.grpc.ai";
+option java_outer_classname = "AIEngineProto";
+option java_multiple_files = true;
+
+// ==================== Service Definition ====================
+
+service AIEngine {
+  // Resume Parsing - Extract structured data from resume files
+  rpc ParseResume(ParseResumeRequest) returns (ParseResumeResponse);
+  
+  // Resume Building - AI-powered resume generation
+  rpc BuildResume(BuildResumeRequest) returns (stream BuildResumeChunk);
+  
+  // AI Interview - Start a new interview session
+  rpc StartInterview(StartInterviewRequest) returns (StartInterviewResponse);
+  
+  // AI Interview - Send message and get streaming response
+  rpc SendInterviewMessage(SendMessageRequest) returns (stream MessageChunk);
+  
+  // Mock Interview - Start practice session
+  rpc StartMockInterview(StartMockRequest) returns (StartMockResponse);
+  
+  // Mock Interview - Get next question
+  rpc GetNextQuestion(GetQuestionRequest) returns (QuestionResponse);
+  
+  // Mock Interview - Evaluate user's answer
+  rpc EvaluateAnswer(EvaluateAnswerRequest) returns (EvaluationResponse);
+  
+  // Mock Interview - Finish and get report
+  rpc FinishMockInterview(FinishMockRequest) returns (MockReportResponse);
+  
+  // Growth - Analyze skill gaps
+  rpc AnalyzeGap(GapAnalysisRequest) returns (GapAnalysisResponse);
+  
+  // Growth - Generate learning path
+  rpc GenerateLearningPath(LearningPathRequest) returns (stream LearningPathChunk);
+  
+  // Job - Analyze job posting
+  rpc AnalyzeJob(AnalyzeJobRequest) returns (JobAnalysisResponse);
+}
+
+// ==================== Resume Parsing ====================
+
+message ParseResumeRequest {
+  bytes file_content = 1;       // Binary file content
+  string file_name = 2;         // Original filename
+  string file_type = 3;         // MIME type (application/pdf, image/*, etc.)
+}
+
+message ParseResumeResponse {
+  bool success = 1;
+  ResumeData data = 2;
+  string error_message = 3;
+}
+
+message ResumeData {
+  string name = 1;
+  string email = 2;
+  string phone = 3;
+  string summary = 4;
+  repeated ExperienceData experiences = 5;
+  repeated EducationData educations = 6;
+  repeated string skills = 7;
+  string raw_text = 8;          // Full extracted text
+}
+
+message ExperienceData {
+  string company = 1;
+  string title = 2;
+  string start_date = 3;        // ISO format: YYYY-MM
+  string end_date = 4;          // ISO format or "present"
+  string description = 5;
+  bool is_current = 6;
+}
+
+message EducationData {
+  string school = 1;
+  string degree = 2;
+  string field = 3;
+  string start_date = 4;
+  string end_date = 5;
+}
+
+// ==================== Resume Building ====================
+
+message BuildResumeRequest {
+  string user_id = 1;
+  string job_title = 2;         // Target job title
+  string job_description = 3;   // Target job description
+  ProfileData profile = 4;      // User's profile data
+  string language = 5;          // "zh" or "en"
+}
+
+message ProfileData {
+  string name = 1;
+  string title = 2;
+  string summary = 3;
+  repeated ExperienceData experiences = 4;
+  repeated EducationData educations = 5;
+  repeated string skills = 6;
+}
+
+message BuildResumeChunk {
+  string section = 1;           // "summary", "experience", "skills", etc.
+  string content = 2;           // Generated content
+  bool is_final = 3;            // Last chunk indicator
+}
+
+// ==================== AI Interview ====================
+
+message StartInterviewRequest {
+  string user_id = 1;
+  string session_id = 2;
+  string job_title = 3;
+  string job_description = 4;
+  string resume_content = 5;
+  InterviewConfig config = 6;
+}
+
+message InterviewConfig {
+  string language = 1;          // "zh" or "en"
+  string difficulty = 2;        // "easy", "medium", "hard"
+  repeated string focus_areas = 3;  // ["technical", "behavioral", "situational"]
+}
+
+message StartInterviewResponse {
+  bool success = 1;
+  string welcome_message = 2;
+  string first_question = 3;
+}
+
+message SendMessageRequest {
+  string session_id = 1;
+  string user_message = 2;
+  repeated ChatMessage history = 3;
+}
+
+message ChatMessage {
+  string role = 1;              // "user" or "assistant"
+  string content = 2;
+}
+
+message MessageChunk {
+  string content = 1;           // Streamed content
+  bool is_final = 2;            // Last chunk indicator
+  string next_question = 3;     // Next question (if any)
+}
+
+// ==================== Mock Interview ====================
+
+message StartMockRequest {
+  string user_id = 1;
+  string session_id = 2;
+  string job_title = 3;
+  string interview_type = 4;    // "TECHNICAL", "BEHAVIORAL", "MIXED"
+  int32 question_count = 5;     // Number of questions (3-10)
+  string language = 6;
+}
+
+message StartMockResponse {
+  bool success = 1;
+  string session_id = 2;
+  int32 total_questions = 3;
+}
+
+message GetQuestionRequest {
+  string session_id = 1;
+  int32 question_index = 2;     // 0-based index
+}
+
+message QuestionResponse {
+  int32 question_index = 1;
+  string question = 2;
+  string category = 3;          // "technical", "behavioral", "situational"
+  int32 time_limit_seconds = 4; // Suggested time limit
+}
+
+message EvaluateAnswerRequest {
+  string session_id = 1;
+  int32 question_index = 2;
+  string question = 3;
+  string answer_text = 4;       // Transcribed answer text
+  string answer_audio_url = 5;  // Audio URL (optional)
+}
+
+message EvaluationResponse {
+  int32 score = 1;              // 0-100
+  string feedback = 2;          // Detailed feedback
+  repeated string strengths = 3;
+  repeated string improvements = 4;
+}
+
+message FinishMockRequest {
+  string session_id = 1;
+}
+
+message MockReportResponse {
+  int32 overall_score = 1;      // 0-100
+  string overall_feedback = 2;
+  repeated QuestionResult results = 3;
+  repeated string recommendations = 4;
+}
+
+message QuestionResult {
+  int32 index = 1;
+  string question = 2;
+  string answer = 3;
+  int32 score = 4;
+  string feedback = 5;
+}
+
+// ==================== Growth - Gap Analysis ====================
+
+message GapAnalysisRequest {
+  string user_id = 1;
+  string goal_title = 2;        // Target job title
+  string target_date = 3;       // Target achievement date (ISO)
+  ProfileData current_profile = 4;
+}
+
+message GapAnalysisResponse {
+  repeated GapItem gaps = 1;
+  repeated string recommendations = 2;
+  int32 readiness_score = 3;    // 0-100 readiness percentage
+}
+
+message GapItem {
+  string skill = 1;
+  string current_level = 2;     // "NONE", "BASIC", "INTERMEDIATE", "ADVANCED"
+  string required_level = 3;
+  int32 priority = 4;           // 1-5 (5 = highest priority)
+}
+
+// ==================== Growth - Learning Path ====================
+
+message LearningPathRequest {
+  string user_id = 1;
+  string goal_id = 2;
+  repeated GapItem gaps = 3;
+  string preferred_style = 4;   // "VIDEO", "READING", "PRACTICE"
+}
+
+message LearningPathChunk {
+  string phase = 1;             // Phase name
+  string content = 2;           // Content chunk
+  bool is_final = 3;
+}
+
+// ==================== Job Analysis ====================
+
+message AnalyzeJobRequest {
+  string job_id = 1;
+  string job_title = 2;
+  string job_description = 3;
+  string company = 4;
+}
+
+message JobAnalysisResponse {
+  repeated string required_skills = 1;
+  repeated string nice_to_have_skills = 2;
+  string experience_level = 3;
+  string salary_estimate = 4;
+  repeated string interview_tips = 5;
+}

@@ -154,6 +154,9 @@ export default function MockInterviewPage() {
       console.error("Failed to get feedback:", error);
       // Show basic feedback
       setFeedback({
+        score: 75,
+        feedback: "Overall good performance. Consider preparing more STAR method examples for behavioral questions.",
+        isComplete: true,
         overallScore: 75,
         strengths: ["Good communication", "Relevant experience"],
         improvements: ["Could provide more specific examples", "Quantify achievements"],
@@ -208,11 +211,12 @@ export default function MockInterviewPage() {
         
         // If there's a follow-up question
         if (result.nextQuestion) {
+          const nextQ = result.nextQuestion;
           setCurrentQuestionId(result.nextQuestionId ? Number(result.nextQuestionId) : null);
           setMessages((prev) => [...prev, {
             id: Date.now() + 1,
             role: "ai",
-            content: result.nextQuestion.question,
+            content: nextQ.question,
             questionId: result.nextQuestionId ? Number(result.nextQuestionId) : undefined,
           }]);
         } else if (result.isComplete) {
@@ -302,7 +306,7 @@ export default function MockInterviewPage() {
             <div>
               <h3 className="font-semibold text-green-600 mb-2">✓ Strengths</h3>
               <ul className="space-y-1 text-sm">
-                {feedback.strengths.map((s, i) => (
+                {(feedback.strengths || []).map((s, i) => (
                   <li key={i} className="flex items-start gap-2">
                     <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
                     {s}
@@ -315,7 +319,7 @@ export default function MockInterviewPage() {
             <div>
               <h3 className="font-semibold text-orange-600 mb-2">△ Areas to Improve</h3>
               <ul className="space-y-1 text-sm">
-                {feedback.improvements.map((s, i) => (
+                {(feedback.improvements || []).map((s, i) => (
                   <li key={i} className="flex items-start gap-2">
                     <Clock className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
                     {s}

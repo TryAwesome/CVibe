@@ -15,7 +15,7 @@ TODO: 后续独立优化开发此 Agent Workflow
 from typing import Optional
 from dataclasses import dataclass, field
 
-from ..llm import LLMClient
+from ...llm import LLMClient
 
 
 @dataclass

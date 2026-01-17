@@ -1,22 +1,21 @@
 package com.cvibe.common.security;
 
-import com.cvibe.biz.user.entity.User;
+import com.cvibe.auth.entity.User;
 import io.jsonwebtoken.*;
-import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 /**
- * JWT Token Provider
- * Handles token generation, validation, and parsing
+ * JWT Token provider for authentication.
+ * Handles token generation, validation, and parsing.
  */
 @Slf4j
 @Component
@@ -28,13 +27,10 @@ public class JwtTokenProvider {
 
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secret,
-            @Value("${jwt.access-token-expiration}") long accessTokenExpiration,
-            @Value("${jwt.refresh-token-expiration}") long refreshTokenExpiration) {
-        
-        // Ensure secret is at least 256 bits for HS256
-        byte[] keyBytes = Decoders.BASE64.decode(java.util.Base64.getEncoder().encodeToString(secret.getBytes()));
-        this.secretKey = Keys.hmacShaKeyFor(keyBytes.length >= 32 ? keyBytes : 
-                Keys.secretKeyFor(SignatureAlgorithm.HS256).getEncoded());
+            @Value("${jwt.access-token-expiration:900000}") long accessTokenExpiration,  // 15 min
+            @Value("${jwt.refresh-token-expiration:604800000}") long refreshTokenExpiration  // 7 days
+    ) {
+        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.accessTokenExpiration = accessTokenExpiration;
         this.refreshTokenExpiration = refreshTokenExpiration;
     }
@@ -43,125 +39,14 @@ public class JwtTokenProvider {
      * Generate access token for user
      */
     public String generateAccessToken(User user) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", user.getId().toString());
-        claims.put("email", user.getEmail());
-        claims.put("role", user.getRole().name());
-        claims.put("type", "access");
-
-        return buildToken(claims, user.getId().toString(), accessTokenExpiration);
+        return generateToken(user, accessTokenExpiration, "access");
     }
 
     /**
      * Generate refresh token for user
      */
     public String generateRefreshToken(User user) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", user.getId().toString());
-        claims.put("type", "refresh");
-
-        return buildToken(claims, user.getId().toString(), refreshTokenExpiration);
-    }
-
-    /**
-     * Build JWT token
-     */
-    private String buildToken(Map<String, Object> claims, String subject, long expiration) {
-        Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + expiration);
-
-        return Jwts.builder()
-                .claims(claims)
-                .subject(subject)
-                .issuedAt(now)
-                .expiration(expiryDate)
-                .signWith(secretKey)
-                .compact();
-    }
-
-    /**
-     * Extract user ID from token
-     */
-    public UUID getUserIdFromToken(String token) {
-        Claims claims = parseToken(token);
-        String userId = claims.get("userId", String.class);
-        return UUID.fromString(userId);
-    }
-
-    /**
-     * Extract email from token
-     */
-    public String getEmailFromToken(String token) {
-        Claims claims = parseToken(token);
-        return claims.get("email", String.class);
-    }
-
-    /**
-     * Extract role from token
-     */
-    public String getRoleFromToken(String token) {
-        Claims claims = parseToken(token);
-        return claims.get("role", String.class);
-    }
-
-    /**
-     * Check if token is access token
-     */
-    public boolean isAccessToken(String token) {
-        Claims claims = parseToken(token);
-        return "access".equals(claims.get("type", String.class));
-    }
-
-    /**
-     * Check if token is refresh token
-     */
-    public boolean isRefreshToken(String token) {
-        Claims claims = parseToken(token);
-        return "refresh".equals(claims.get("type", String.class));
-    }
-
-    /**
-     * Validate token
-     */
-    public boolean validateToken(String token) {
-        try {
-            parseToken(token);
-            return true;
-        } catch (JwtException | IllegalArgumentException e) {
-            log.warn("Invalid JWT token: {}", e.getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Check if token is expired
-     */
-    public boolean isTokenExpired(String token) {
-        try {
-            Claims claims = parseToken(token);
-            return claims.getExpiration().before(new Date());
-        } catch (ExpiredJwtException e) {
-            return true;
-        }
-    }
-
-    /**
-     * Get token expiration date
-     */
-    public Date getExpirationDateFromToken(String token) {
-        Claims claims = parseToken(token);
-        return claims.getExpiration();
-    }
-
-    /**
-     * Parse and validate token
-     */
-    private Claims parseToken(String token) {
-        return Jwts.parser()
-                .verifyWith(secretKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+        return generateToken(user, refreshTokenExpiration, "refresh");
     }
 
     /**
@@ -171,10 +56,86 @@ public class JwtTokenProvider {
         return accessTokenExpiration;
     }
 
+    private String generateToken(User user, long expiration, String type) {
+        Instant now = Instant.now();
+        Instant expiryDate = now.plusMillis(expiration);
+
+        return Jwts.builder()
+                .subject(user.getId().toString())
+                .claim("email", user.getEmail())
+                .claim("role", user.getRole().name())
+                .claim("type", type)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(expiryDate))
+                .signWith(secretKey)
+                .compact();
+    }
+
     /**
-     * Get refresh token expiration in milliseconds
+     * Validate token and return true if valid
      */
-    public long getRefreshTokenExpiration() {
-        return refreshTokenExpiration;
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parser()
+                    .verifyWith(secretKey)
+                    .build()
+                    .parseSignedClaims(token);
+            return true;
+        } catch (ExpiredJwtException e) {
+            log.warn("Token expired: {}", e.getMessage());
+        } catch (UnsupportedJwtException e) {
+            log.warn("Unsupported JWT: {}", e.getMessage());
+        } catch (MalformedJwtException e) {
+            log.warn("Malformed JWT: {}", e.getMessage());
+        } catch (SecurityException e) {
+            log.warn("Invalid signature: {}", e.getMessage());
+        } catch (IllegalArgumentException e) {
+            log.warn("JWT claims string is empty: {}", e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * Check if token is a refresh token
+     */
+    public boolean isRefreshToken(String token) {
+        try {
+            Claims claims = getClaims(token);
+            return "refresh".equals(claims.get("type", String.class));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Get user ID from token
+     */
+    public UUID getUserIdFromToken(String token) {
+        Claims claims = getClaims(token);
+        return UUID.fromString(claims.getSubject());
+    }
+
+    /**
+     * Get email from token
+     */
+    public String getEmailFromToken(String token) {
+        Claims claims = getClaims(token);
+        return claims.get("email", String.class);
+    }
+
+    /**
+     * Get role from token
+     */
+    public String getRoleFromToken(String token) {
+        Claims claims = getClaims(token);
+        return claims.get("role", String.class);
+    }
+
+    private Claims getClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 }

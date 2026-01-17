@@ -4,14 +4,16 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Clock, Eye, Upload, Loader2, Star } from "lucide-react";
+import { FileText, Clock, Eye, Upload, Loader2, Star, Trash2 } from "lucide-react";
 import api, { Resume } from "@/lib/api";
+import { toast } from "sonner";
 
 export function ResumeView() {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     loadResumes();
@@ -59,9 +61,33 @@ export function ResumeView() {
           ...r,
           isPrimary: r.id === resumeId
         })));
+        toast.success("Primary resume updated");
       }
     } catch (error) {
       console.error("Failed to set primary:", error);
+      toast.error("Failed to set primary resume");
+    }
+  };
+
+  const deleteResume = async (resumeId: string) => {
+    try {
+      setDeleting(resumeId);
+      const res = await api.deleteResume(resumeId);
+      if (res.success) {
+        setResumes(prev => prev.filter(r => r.id !== resumeId));
+        if (selectedResume?.id === resumeId) {
+          const remaining = resumes.filter(r => r.id !== resumeId);
+          setSelectedResume(remaining[0] || null);
+        }
+        toast.success("Resume deleted");
+      } else {
+        toast.error("Failed to delete resume");
+      }
+    } catch (error) {
+      console.error("Failed to delete resume:", error);
+      toast.error("Failed to delete resume");
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -113,10 +139,25 @@ export function ResumeView() {
                       variant="ghost" 
                       className="h-6 w-6"
                       onClick={(e) => { e.stopPropagation(); setPrimary(r.id); }}
+                      title="Set as primary"
                     >
                       <Star className="h-3 w-3" />
                     </Button>
                   )}
+                  <Button 
+                    size="icon" 
+                    variant="ghost" 
+                    className="h-6 w-6 hover:text-destructive"
+                    onClick={(e) => { e.stopPropagation(); deleteResume(r.id); }}
+                    disabled={deleting === r.id}
+                    title="Delete resume"
+                  >
+                    {deleting === r.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3 w-3" />
+                    )}
+                  </Button>
                 </div>
               </div>
             ))
@@ -146,20 +187,20 @@ export function ResumeView() {
           <CardTitle className="text-lg">
             Preview: {selectedResume?.fileName || "Not Selected"}
           </CardTitle>
-          {selectedResume?.fileUrl && (
+          {(selectedResume?.downloadUrl || selectedResume?.fileUrl) && (
             <Button 
               size="sm" 
               variant="ghost"
-              onClick={() => window.open(selectedResume.fileUrl, "_blank")}
+              onClick={() => window.open(selectedResume.downloadUrl || selectedResume.fileUrl, "_blank")}
             >
               <Eye className="h-4 w-4 mr-2" /> Full Screen
             </Button>
           )}
         </CardHeader>
         <CardContent className="flex-1 bg-muted/20 m-6 rounded-xl border-2 border-dashed border-muted-foreground/20 flex items-center justify-center">
-          {selectedResume?.fileUrl ? (
+          {(selectedResume?.downloadUrl || selectedResume?.fileUrl) ? (
             <iframe
-              src={selectedResume.fileUrl}
+              src={selectedResume.downloadUrl || selectedResume.fileUrl}
               className="w-full h-full min-h-[400px] rounded-lg"
               title="Resume Preview"
             />

@@ -1,46 +1,44 @@
 package com.cvibe.common.exception;
 
-import com.cvibe.common.response.ErrorCode;
 import lombok.Getter;
 
 /**
- * Business Exception - Base exception for all business logic errors
+ * Business exception that carries an error code.
+ * Thrown from service layer when business rules are violated.
  */
 @Getter
 public class BusinessException extends RuntimeException {
 
     private final ErrorCode errorCode;
-    private final String details;
+    private final Object[] args;
 
     public BusinessException(ErrorCode errorCode) {
         super(errorCode.getMessage());
         this.errorCode = errorCode;
-        this.details = null;
+        this.args = null;
     }
 
-    public BusinessException(ErrorCode errorCode, String details) {
-        super(errorCode.getMessage());
+    public BusinessException(ErrorCode errorCode, String customMessage) {
+        super(customMessage);
         this.errorCode = errorCode;
-        this.details = details;
+        this.args = null;
     }
 
     public BusinessException(ErrorCode errorCode, Throwable cause) {
         super(errorCode.getMessage(), cause);
         this.errorCode = errorCode;
-        this.details = cause.getMessage();
+        this.args = null;
     }
 
-    public BusinessException(ErrorCode errorCode, String details, Throwable cause) {
-        super(errorCode.getMessage(), cause);
+    public BusinessException(ErrorCode errorCode, String customMessage, Throwable cause) {
+        super(customMessage, cause);
         this.errorCode = errorCode;
-        this.details = details;
+        this.args = null;
     }
 
-    public int getCode() {
-        return errorCode.getCode();
-    }
-
-    public int getHttpStatus() {
-        return errorCode.getHttpStatus();
+    public BusinessException(ErrorCode errorCode, Object... args) {
+        super(String.format(errorCode.getMessage(), args));
+        this.errorCode = errorCode;
+        this.args = args;
     }
 }
