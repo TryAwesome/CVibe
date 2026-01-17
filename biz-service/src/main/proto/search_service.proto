@@ -1,0 +1,235 @@
+// Search Service gRPC Definition
+// This file is the single source of truth for search-service API
+// Copy to: biz-service/src/main/proto/, search-service/proto/
+
+syntax = "proto3";
+
+package cvibe.search;
+
+option go_package = "github.com/cvibe/search-service/proto";
+option java_package = "com.cvibe.grpc.search";
+option java_outer_classname = "SearchServiceProto";
+option java_multiple_files = true;
+
+// ==================== Service Definition ====================
+
+service SearchService {
+  // Job Search - Full-text search with filters
+  rpc SearchJobs(SearchJobsRequest) returns (SearchJobsResponse);
+  
+  // Resume-Job Matching - Calculate match score
+  rpc MatchResumeToJob(MatchRequest) returns (MatchResponse);
+  
+  // Batch Matching - Parallel matching for multiple jobs
+  rpc BatchMatch(BatchMatchRequest) returns (BatchMatchResponse);
+  
+  // Job Recommendations - Personalized job suggestions
+  rpc GetJobRecommendations(RecommendRequest) returns (RecommendResponse);
+  
+  // Search Suggestions - Autocomplete
+  rpc GetSearchSuggestions(SuggestionRequest) returns (SuggestionResponse);
+  
+  // Trending Searches - Popular searches
+  rpc GetTrendingSearches(TrendingRequest) returns (TrendingResponse);
+  
+  // Crawler Control - Trigger job crawling
+  rpc TriggerCrawl(CrawlRequest) returns (CrawlResponse);
+  
+  // Analytics - Market data aggregation
+  rpc GetAnalytics(AnalyticsRequest) returns (AnalyticsResponse);
+}
+
+// ==================== Job Search ====================
+
+message SearchJobsRequest {
+  string query = 1;                 // Search keywords
+  repeated string locations = 2;    // Location filters
+  repeated string industries = 3;   // Industry filters
+  string experience_level = 4;      // "entry", "mid", "senior", "lead"
+  string salary_range = 5;          // "0-10k", "10k-20k", "20k-50k", "50k+"
+  string employment_type = 6;       // "full-time", "part-time", "contract"
+  int32 page = 7;                   // 1-based page number
+  int32 page_size = 8;              // Items per page (max 50)
+  string sort_by = 9;               // "relevance", "date", "salary"
+}
+
+message SearchJobsResponse {
+  repeated Job jobs = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+  repeated Facet facets = 5;        // Aggregation facets
+}
+
+message Job {
+  string id = 1;
+  string title = 2;
+  string company = 3;
+  string company_logo = 4;
+  string location = 5;
+  string salary_range = 6;
+  string experience = 7;
+  string employment_type = 8;
+  string description = 9;
+  repeated string requirements = 10;
+  repeated string benefits = 11;
+  string posted_at = 12;            // ISO timestamp
+  string source = 13;               // "boss", "lagou", "linkedin", "direct"
+  string source_url = 14;
+  double match_score = 15;          // 0-100 (only when matching)
+}
+
+message Facet {
+  string name = 1;                  // "location", "industry", "experience"
+  repeated FacetItem items = 2;
+}
+
+message FacetItem {
+  string value = 1;
+  int32 count = 2;
+}
+
+// ==================== Resume-Job Matching ====================
+
+message MatchRequest {
+  ResumeProfile resume = 1;
+  Job job = 2;
+}
+
+message ResumeProfile {
+  string user_id = 1;
+  string title = 2;
+  repeated string skills = 3;
+  int32 years_experience = 4;
+  repeated WorkExperience experiences = 5;
+  repeated string preferred_locations = 6;
+  string expected_salary = 7;
+}
+
+message WorkExperience {
+  string title = 1;
+  string company = 2;
+  int32 duration_months = 3;
+  repeated string skills_used = 4;
+}
+
+message MatchResponse {
+  double overall_score = 1;         // 0-100
+  MatchDetails details = 2;
+  repeated string match_reasons = 3;
+  repeated string gap_reasons = 4;
+}
+
+message MatchDetails {
+  double skill_match = 1;           // Skill match percentage
+  double experience_match = 2;      // Experience match percentage
+  double location_match = 3;        // Location match percentage
+  double salary_match = 4;          // Salary match percentage
+  double title_match = 5;           // Title relevance
+}
+
+// ==================== Batch Matching ====================
+
+message BatchMatchRequest {
+  ResumeProfile resume = 1;
+  repeated string job_ids = 2;      // Max 100 job IDs
+}
+
+message BatchMatchResponse {
+  repeated JobMatch matches = 1;
+  int32 processed = 2;
+  int32 failed = 3;
+}
+
+message JobMatch {
+  string job_id = 1;
+  double score = 2;
+  MatchDetails details = 3;
+}
+
+// ==================== Recommendations ====================
+
+message RecommendRequest {
+  string user_id = 1;
+  ResumeProfile resume = 2;
+  int32 limit = 3;                  // Max results (default 10)
+  repeated string exclude_job_ids = 4;  // Previously viewed jobs
+}
+
+message RecommendResponse {
+  repeated RecommendedJob recommendations = 1;
+}
+
+message RecommendedJob {
+  Job job = 1;
+  double match_score = 2;
+  string recommend_reason = 3;
+}
+
+// ==================== Search Suggestions ====================
+
+message SuggestionRequest {
+  string prefix = 1;                // Partial input text
+  int32 limit = 2;                  // Max suggestions (default 5)
+}
+
+message SuggestionResponse {
+  repeated Suggestion suggestions = 1;
+}
+
+message Suggestion {
+  string text = 1;
+  string type = 2;                  // "job_title", "company", "skill"
+  int32 count = 3;                  // Number of matching jobs
+}
+
+// ==================== Trending Searches ====================
+
+message TrendingRequest {
+  string location = 1;              // Optional location filter
+  int32 limit = 2;                  // Max items (default 10)
+}
+
+message TrendingResponse {
+  repeated TrendingItem items = 1;
+}
+
+message TrendingItem {
+  string keyword = 1;
+  int32 search_count = 2;
+  double growth_rate = 3;           // Week-over-week growth
+}
+
+// ==================== Crawler Control ====================
+
+message CrawlRequest {
+  string source = 1;                // "boss", "lagou", "all"
+  repeated string keywords = 2;     // Search keywords to crawl
+  repeated string locations = 3;    // Locations to crawl
+}
+
+message CrawlResponse {
+  string task_id = 1;
+  string status = 2;                // "queued", "running", "completed", "failed"
+  int32 estimated_jobs = 3;
+}
+
+// ==================== Analytics ====================
+
+message AnalyticsRequest {
+  string metric = 1;                // "salary_trend", "demand_trend", "skill_trend"
+  string industry = 2;              // Industry filter
+  string location = 3;              // Location filter
+  string time_range = 4;            // "7d", "30d", "90d", "1y"
+}
+
+message AnalyticsResponse {
+  repeated DataPoint data_points = 1;
+  map<string, double> summary = 2;  // Key metrics summary
+}
+
+message DataPoint {
+  string date = 1;                  // ISO date
+  double value = 2;
+  string label = 3;
+}

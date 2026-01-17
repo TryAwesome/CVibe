@@ -27,7 +27,7 @@ from typing import Optional
 from dataclasses import dataclass, field
 from enum import Enum
 
-from ..llm import LLMClient
+from ...llm import LLMClient
 
 
 class MockInterviewType(Enum):

@@ -39,6 +39,13 @@ Thumbs.db
 *.swp
 *.swo
 
+# Eclipse / Spring Tool Suite
+.classpath
+.project
+.factorypath
+.settings/
+bin/
+
 # Java / Maven
 biz-service/target/
 **/target/

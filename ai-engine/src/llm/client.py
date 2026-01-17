@@ -1,10 +1,12 @@
 """
 LLM Client Configuration - 支持用户自定义 API Key、Model、BaseURL
-支持语言模型和视觉模型分离配置
+支持语言模型和视觉模型分离配置，支持流式输出
 """
 
 import os
-from typing import Optional
+import json
+import base64
+from typing import Optional, Iterator, Union, Any
 from pydantic import BaseModel
 from openai import OpenAI
 from anthropic import Anthropic
@@ -87,16 +89,56 @@ class LLMClient:
             )
             return response.choices[0].message.content
 
-    def stream_chat(self, messages: list[dict], **kwargs):
+    def stream_chat(self, messages: list[dict], **kwargs) -> Iterator[str]:
         """流式聊天响应"""
-        # TODO: 实现流式响应
-        pass
+        temperature = kwargs.get("temperature", self.config.temperature)
+        max_tokens = kwargs.get("max_tokens", self.config.max_tokens)
+
+        if self.config.provider == "anthropic":
+            system_msg = next((m["content"] for m in messages if m["role"] == "system"), None)
+            chat_messages = [m for m in messages if m["role"] != "system"]
+            
+            with self._client.messages.stream(
+                model=self.config.model,
+                max_tokens=max_tokens,
+                system=system_msg or "",
+                messages=chat_messages,
+            ) as stream:
+                for text in stream.text_stream:
+                    yield text
+        else:
+            response = self._client.chat.completions.create(
+                model=self.config.model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=True,
+            )
+            for chunk in response:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+
+    def parse_json(self, messages: list[dict], **kwargs) -> dict:
+        """解析 JSON 响应"""
+        response = self.chat(messages, **kwargs)
+        # Try to extract JSON from response
+        try:
+            # Handle markdown code blocks
+            if "```json" in response:
+                json_str = response.split("```json")[1].split("```")[0].strip()
+            elif "```" in response:
+                json_str = response.split("```")[1].split("```")[0].strip()
+            else:
+                json_str = response.strip()
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            return {"raw_response": response}
 
 
 class VisionClient:
     """
     视觉模型客户端，用于图像分析任务
-    支持: OpenAI GPT-4V, Claude 3 Vision, Gemini Pro Vision
+    支持: OpenAI GPT-4V, Claude 3 Vision
     """
     
     def __init__(self, config: VisionConfig):
@@ -113,12 +155,12 @@ class VisionClient:
                 base_url=self.config.base_url,
             )
     
-    def analyze_image(self, image_url: str, prompt: str, **kwargs) -> str:
+    def analyze_image(self, image_data: Union[str, bytes], prompt: str, **kwargs) -> str:
         """
         分析图像
         
         Args:
-            image_url: 图像URL或base64数据
+            image_data: 图像URL、base64字符串或bytes数据
             prompt: 分析提示词
         
         Returns:
@@ -126,21 +168,27 @@ class VisionClient:
         """
         max_tokens = kwargs.get("max_tokens", self.config.max_tokens)
         
+        # 处理不同格式的图像数据
+        if isinstance(image_data, bytes):
+            image_b64 = base64.b64encode(image_data).decode()
+            image_url = f"data:image/png;base64,{image_b64}"
+        elif image_data.startswith("data:"):
+            image_url = image_data
+        else:
+            image_url = image_data
+        
         if self.config.provider == "anthropic":
-            # Anthropic Claude Vision
-            import base64
             import httpx
             
-            # 处理图像数据
+            # Anthropic requires base64 data
             if image_url.startswith("data:"):
-                # Base64 数据
                 media_type = image_url.split(";")[0].split(":")[1]
-                image_data = image_url.split(",")[1]
+                image_b64 = image_url.split(",")[1]
             else:
-                # URL - 需要下载
+                # Download image
                 response = httpx.get(image_url)
                 media_type = response.headers.get("content-type", "image/jpeg")
-                image_data = base64.b64encode(response.content).decode()
+                image_b64 = base64.b64encode(response.content).decode()
             
             response = self._client.messages.create(
                 model=self.config.model,
@@ -153,7 +201,7 @@ class VisionClient:
                             "source": {
                                 "type": "base64",
                                 "media_type": media_type,
-                                "data": image_data,
+                                "data": image_b64,
                             }
                         },
                         {
@@ -186,15 +234,7 @@ def create_llm_client(
     provider: str = "openai",
     base_url: Optional[str] = None,
 ) -> LLMClient:
-    """
-    工厂方法：创建 LLM 客户端
-    
-    用户可以在 Settings 中配置自己的:
-    - API Key
-    - Model (gpt-4o, claude-3-opus, etc.)
-    - Provider (openai, anthropic, custom)
-    - Base URL (自定义 API 端点)
-    """
+    """工厂方法：创建 LLM 客户端"""
     config = LLMConfig(
         provider=provider,
         api_key=api_key,
@@ -210,11 +250,7 @@ def create_vision_client(
     provider: str = "openai",
     base_url: Optional[str] = None,
 ) -> VisionClient:
-    """
-    工厂方法：创建视觉模型客户端
-    
-    用于图像分析任务，如简历图片解析
-    """
+    """工厂方法：创建视觉模型客户端"""
     config = VisionConfig(
         provider=provider,
         api_key=api_key,
@@ -226,7 +262,7 @@ def create_vision_client(
 
 def get_default_llm_config() -> Optional[LLMConfig]:
     """从环境变量获取默认 LLM 配置"""
-    api_key = os.getenv("AI_LLM_API_KEY")
+    api_key = os.getenv("AI_LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not api_key:
         return None
     
@@ -243,7 +279,7 @@ def get_default_vision_config() -> Optional[VisionConfig]:
     api_key = os.getenv("AI_VISION_API_KEY")
     if not api_key:
         # 如果没有单独配置视觉模型，则使用 LLM 配置
-        api_key = os.getenv("AI_LLM_API_KEY")
+        api_key = os.getenv("AI_LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
         if not api_key:
             return None
         

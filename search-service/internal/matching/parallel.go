@@ -25,46 +25,54 @@ func NewParallelProcessor() *ParallelProcessor {
 	}
 }
 
-// ProcessBatch 批量并行处理
-func (p *ParallelProcessor) ProcessBatch[T any, R any](
+// GetWorkerCount 获取 worker 数量
+func (p *ParallelProcessor) GetWorkerCount() int {
+	return p.workerCount
+}
+
+// ProcessBatch 批量并行处理 (泛型顶级函数)
+func ProcessBatch[T any, R any](
 	ctx context.Context,
 	items []T,
 	processor func(T) R,
+	workerCount int,
 ) []R {
+	if workerCount <= 0 {
+		workerCount = runtime.NumCPU()
+	}
+
 	results := make([]R, len(items))
-	
+
 	// 创建任务通道
-	tasks := make(chan struct {
+	type task struct {
 		index int
 		item  T
-	}, len(items))
-	
+	}
+	tasks := make(chan task, len(items))
+
 	// 启动 worker
 	var wg sync.WaitGroup
-	for i := 0; i < p.workerCount; i++ {
+	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for task := range tasks {
+			for t := range tasks {
 				select {
 				case <-ctx.Done():
 					return
 				default:
-					results[task.index] = processor(task.item)
+					results[t.index] = processor(t.item)
 				}
 			}
 		}()
 	}
-	
+
 	// 分发任务
 	for i, item := range items {
-		tasks <- struct {
-			index int
-			item  T
-		}{i, item}
+		tasks <- task{i, item}
 	}
 	close(tasks)
-	
+
 	wg.Wait()
 	return results
 }

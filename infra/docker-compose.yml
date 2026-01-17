@@ -6,9 +6,9 @@ services:
     image: pgvector/pgvector:pg16
     container_name: cvibe-postgres
     environment:
-      POSTGRES_DB: cvibe
-      POSTGRES_USER: cvibe
-      POSTGRES_PASSWORD: cvibe123
+      POSTGRES_DB: ${POSTGRES_DB:-cvibe}
+      POSTGRES_USER: ${POSTGRES_USER:-cvibe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cvibe123}
     ports:
       - "5432:5432"
     volumes:
@@ -19,6 +19,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - cvibe-network
 
   # Redis for caching and sessions
   redis:
@@ -28,20 +30,22 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - cvibe-network
 
   # MinIO for file storage (S3-compatible)
   minio:
     image: minio/minio:latest
     container_name: cvibe-minio
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -53,8 +57,205 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
+    networks:
+      - cvibe-network
+
+  # Zookeeper for Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: cvibe-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cvibe-network
+
+  # Kafka for event streaming
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: cvibe-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - cvibe-network
+
+  # Elasticsearch for full-text search
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: cvibe-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - cluster.name=cvibe-cluster
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - cvibe-network
+
+  # Kibana for Elasticsearch visualization (optional, for debugging)
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: cvibe-kibana
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    profiles:
+      - debug
+    networks:
+      - cvibe-network
+
+  # ==================== Application Services ====================
+
+  # AI Engine (Python + gRPC)
+  ai-engine:
+    build:
+      context: ../ai-engine
+      dockerfile: Dockerfile
+    container_name: cvibe-ai-engine
+    environment:
+      GRPC_PORT: 50051
+      AI_ENGINE_REDIS_URL: redis://redis:6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AI_LLM_PROVIDER: ${AI_LLM_PROVIDER:-openai}
+      AI_LLM_MODEL: ${AI_LLM_MODEL:-gpt-4o}
+    ports:
+      - "50051:50051"
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles:
+      - app
+    networks:
+      - cvibe-network
+
+  # Search Service (Go + Elasticsearch)
+  search-service:
+    build:
+      context: ../search-service
+      dockerfile: Dockerfile
+    container_name: cvibe-search-service
+    environment:
+      GRPC_PORT: 50052
+      ES_HOST: http://elasticsearch:9200
+      REDIS_HOST: redis:6379
+    ports:
+      - "50052:50052"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles:
+      - app
+    networks:
+      - cvibe-network
+
+  # Biz Service (Java + Spring Boot)
+  biz-service:
+    build:
+      context: ../biz-service
+      dockerfile: Dockerfile
+    container_name: cvibe-biz-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DATABASE_URL: jdbc:postgresql://postgres:5432/cvibe
+      POSTGRES_USER: cvibe
+      POSTGRES_PASSWORD: cvibe123
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin123
+      AI_ENGINE_HOST: ai-engine
+      AI_ENGINE_PORT: 50051
+      AI_ENGINE_ENABLED: "true"
+      SEARCH_SERVICE_HOST: search-service
+      SEARCH_SERVICE_PORT: 50052
+      SEARCH_SERVICE_ENABLED: "true"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    profiles:
+      - app
+    networks:
+      - cvibe-network
+
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: cvibe-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - biz-service
+    profiles:
+      - app
+    networks:
+      - cvibe-network
 
 volumes:
   postgres_data:
   redis_data:
   minio_data:
+  zookeeper_data:
+  zookeeper_log:
+  kafka_data:
+  elasticsearch_data:
+
+networks:
+  cvibe-network:
+    driver: bridge
