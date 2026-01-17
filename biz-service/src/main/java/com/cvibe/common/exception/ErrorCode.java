@@ -53,6 +53,8 @@ public enum ErrorCode {
     EXPERIENCE_NOT_FOUND(30002, HttpStatus.NOT_FOUND, "Experience not found"),
     SKILL_NOT_FOUND(30003, HttpStatus.NOT_FOUND, "Skill not found"),
     SKILL_ALREADY_EXISTS(30004, HttpStatus.BAD_REQUEST, "Skill already exists"),
+    EDUCATION_NOT_FOUND(30005, HttpStatus.NOT_FOUND, "Education not found"),
+    PROJECT_NOT_FOUND(30006, HttpStatus.NOT_FOUND, "Project not found"),
 
     // ==================== Resume Errors (40000-40999) ====================
     RESUME_NOT_FOUND(40001, HttpStatus.NOT_FOUND, "Resume not found"),

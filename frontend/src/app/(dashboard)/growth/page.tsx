@@ -98,8 +98,9 @@ export default function GrowthPage() {
     try {
       // Create the goal
       const goalRes = await api.createGoal({
-        targetCompany: company,
-        targetPosition: position,
+        title: `${position} at ${company}`,
+        description: `Career goal: ${position} position at ${company}`,
+        targetRole: position,
       });
 
       if (goalRes.success && goalRes.data) {
@@ -220,40 +221,6 @@ export default function GrowthPage() {
           Bridge the gap between your current profile and your dream job with AI-curated plans.
         </p>
       </div>
-
-      {/* Summary Stats */}
-      {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
-              <Target className="h-5 w-5 text-primary mb-2" />
-              <p className="text-2xl font-bold">{summary.activeGoals}</p>
-              <p className="text-xs text-muted-foreground">Active Goals</p>
-            </CardContent>
-          </Card>
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
-              <CheckCircle2 className="h-5 w-5 text-green-500 mb-2" />
-              <p className="text-2xl font-bold">{summary.completedMilestones}</p>
-              <p className="text-xs text-muted-foreground">Milestones Done</p>
-            </CardContent>
-          </Card>
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
-              <Circle className="h-5 w-5 text-blue-500 mb-2" />
-              <p className="text-2xl font-bold">{summary.totalMilestones}</p>
-              <p className="text-xs text-muted-foreground">Total Milestones</p>
-            </CardContent>
-          </Card>
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
-              <TrendingUp className="h-5 w-5 text-violet-500 mb-2" />
-              <p className="text-2xl font-bold">{summary.overallProgress}%</p>
-              <p className="text-xs text-muted-foreground">Overall Progress</p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
       {error && (
         <div className="bg-destructive/10 text-destructive p-4 rounded-lg flex items-center gap-2">

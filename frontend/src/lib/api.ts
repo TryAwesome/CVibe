@@ -579,6 +579,52 @@ class ApiClient {
   async deleteSkill(skillId: string): Promise<ApiResponse<void>> {
     return this.request<void>(`/profile/skills/${skillId}`, { method: 'DELETE' });
   }
+
+  // ==================== Education API ====================
+  async getEducations(): Promise<ApiResponse<Education[]>> {
+    return this.request<Education[]>('/profile/educations');
+  }
+
+  async createEducation(request: AddEducationRequest): Promise<ApiResponse<Education>> {
+    return this.request<Education>('/profile/educations', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async updateEducation(educationId: string, request: AddEducationRequest): Promise<ApiResponse<Education>> {
+    return this.request<Education>(`/profile/educations/${educationId}`, {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async deleteEducation(educationId: string): Promise<ApiResponse<void>> {
+    return this.request<void>(`/profile/educations/${educationId}`, { method: 'DELETE' });
+  }
+
+  // ==================== Project API ====================
+  async getProjects(): Promise<ApiResponse<Project[]>> {
+    return this.request<Project[]>('/profile/projects');
+  }
+
+  async createProject(request: AddProjectRequest): Promise<ApiResponse<Project>> {
+    return this.request<Project>('/profile/projects', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async updateProject(projectId: string, request: AddProjectRequest): Promise<ApiResponse<Project>> {
+    return this.request<Project>(`/profile/projects/${projectId}`, {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async deleteProject(projectId: string): Promise<ApiResponse<void>> {
+    return this.request<void>(`/profile/projects/${projectId}`, { method: 'DELETE' });
+  }
 }
 
 export const api = new ApiClient();
@@ -596,6 +642,14 @@ export interface PagedResponse<T> {
 }
 
 // Job types
+export interface JobSalary {
+  min?: number;
+  max?: number;
+  currency?: string;
+  period?: string;
+  formatted?: string;
+}
+
 export interface Job {
   id: string;
   title: string;
@@ -603,9 +657,11 @@ export interface Job {
   location: string;
   description: string;
   requirements: string[];
-  salary?: string;
+  skills?: string[];
+  salary?: string | JobSalary;
   source: string;
   sourceUrl?: string;
+  url?: string;
   isRemote: boolean;
   postedAt: string;
   createdAt: string;
@@ -618,6 +674,7 @@ export interface JobMatch {
   matchReasons: string[];
   status: 'NEW' | 'VIEWED' | 'SAVED' | 'APPLIED' | 'REJECTED';
   createdAt: string;
+  isSaved?: boolean;
 }
 
 export interface JobMatchSummary {
@@ -664,7 +721,7 @@ export interface ResumeGeneration {
 
 export interface GenerateResumeRequest {
   templateId: string;
-  targetJob?: string;
+  targetPosition: string;
   targetCompany?: string;
   customInstructions?: string;
 }
@@ -674,6 +731,7 @@ export interface InterviewSession {
   id: string;
   sessionType: string;
   status: string;
+  topic?: string;
   currentQuestionIndex?: number;
   totalQuestions?: number;
   focusArea?: string;
@@ -682,6 +740,7 @@ export interface InterviewSession {
   startedAt?: string;
   lastActivityAt?: string;
   completedAt?: string;
+  createdAt?: string;
   answeredCount?: number;
   progressPercentage?: number;
 }
@@ -785,6 +844,10 @@ export interface MockAnswerFeedback {
   nextQuestion?: MockQuestion;
   nextQuestionId?: string;
   isComplete: boolean;
+  overallScore?: number;
+  strengths?: string[];
+  improvements?: string[];
+  summary?: string;
 }
 
 // Alias for compatibility
@@ -810,9 +873,11 @@ export interface GrowthGoal {
 }
 
 export interface CreateGoalRequest {
-  targetCompany: string;
-  targetPosition: string;
-  deadline?: string;
+  title: string;
+  description?: string;
+  targetRole?: string;
+  targetDate?: string;
+  isPrimary?: boolean;
 }
 
 export interface UpdateGoalRequest {
@@ -877,7 +942,9 @@ export interface Post {
 
 export interface CreatePostRequest {
   content: string;
-  category?: string;
+  category: 'DISCUSSION' | 'QUESTION' | 'SHARE' | 'JOB' | 'EXPERIENCE' | 'SUCCESS_STORY';
+  images?: string[];
+  tags?: string[];
 }
 
 export interface UpdatePostRequest {
@@ -984,6 +1051,58 @@ export interface Skill {
 export interface AddSkillRequest {
   name: string;
   level: string;
+}
+
+export interface Education {
+  id: string;
+  school: string;
+  degree?: string;
+  fieldOfStudy?: string;
+  location?: string;
+  startDate?: string;
+  endDate?: string;
+  isCurrent?: boolean;
+  gpa?: string;
+  description?: string;
+  activities?: string[];
+}
+
+export interface AddEducationRequest {
+  school: string;
+  degree?: string;
+  fieldOfStudy?: string;
+  location?: string;
+  startDate?: string;
+  endDate?: string;
+  isCurrent?: boolean;
+  gpa?: string;
+  description?: string;
+  activities?: string[];
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  url?: string;
+  repoUrl?: string;
+  technologies?: string[];
+  startDate?: string;
+  endDate?: string;
+  isCurrent?: boolean;
+  highlights?: string[];
+}
+
+export interface AddProjectRequest {
+  name: string;
+  description?: string;
+  url?: string;
+  repoUrl?: string;
+  technologies?: string[];
+  startDate?: string;
+  endDate?: string;
+  isCurrent?: boolean;
+  highlights?: string[];
 }
 
 // Notification types

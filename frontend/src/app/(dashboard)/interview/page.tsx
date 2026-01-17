@@ -13,7 +13,7 @@ type Message = {
   id: number;
   role: "ai" | "user";
   content: string;
-  questionId?: number;
+  questionId?: string;
 };
 
 export default function InterviewPage() {
@@ -24,7 +24,7 @@ export default function InterviewPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(true);
-  const [currentQuestionId, setCurrentQuestionId] = useState<number | null>(null);
+  const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Fetch sessions on mount
@@ -99,11 +99,11 @@ export default function InterviewPage() {
         id: 1,
         role: "ai",
         content: initialContent,
-        questionId: stateResponse.currentQuestion?.id ? Number(stateResponse.currentQuestion.id) : undefined,
+        questionId: stateResponse.currentQuestion?.id ? String(stateResponse.currentQuestion.id) : undefined,
       }]);
       
       if (stateResponse.currentQuestion?.id) {
-        setCurrentQuestionId(Number(stateResponse.currentQuestion.id));
+        setCurrentQuestionId(String(stateResponse.currentQuestion.id));
       }
     } catch (error) {
       console.error("Failed to create session:", error);
@@ -265,7 +265,7 @@ export default function InterviewPage() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {new Date(session.createdAt).toLocaleDateString()}
+                  {session.createdAt ? new Date(session.createdAt).toLocaleDateString() : ""}
                 </p>
               </Card>
             ))
@@ -362,11 +362,11 @@ export default function InterviewPage() {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   className="flex-1 bg-background"
-                  disabled={isLoading || activeSession.status !== "active"}
+                  disabled={isLoading || activeSession.status === "completed" || activeSession.status === "paused"}
                 />
                 <Button 
                   onClick={handleSend} 
-                  disabled={isLoading || !input.trim() || activeSession.status !== "active"} 
+                  disabled={isLoading || !input.trim() || activeSession.status === "completed" || activeSession.status === "paused"} 
                   size="icon"
                 >
                   <Send className="h-4 w-4" />

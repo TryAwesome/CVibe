@@ -7,9 +7,23 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from "@/components/ui/badge";
 import { Briefcase, MapPin, DollarSign, Clock, RefreshCw, Filter, ExternalLink, XCircle, Search, Loader2, AlertCircle, Bookmark, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { api, Job, JobMatch, JobMatchSummary } from "@/lib/api";
+import { api, Job, JobMatch, JobMatchSummary, JobSalary } from "@/lib/api";
 import { useAuth } from "@/lib/contexts/auth-context";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+// Helper function to format salary
+const formatSalary = (salary: string | JobSalary | undefined): string => {
+  if (!salary) return "";
+  if (typeof salary === "string") return salary;
+  if (salary.formatted) return salary.formatted;
+  if (salary.min && salary.max) {
+    const currency = salary.currency || "$";
+    return `${currency}${salary.min.toLocaleString()} - ${currency}${salary.max.toLocaleString()}`;
+  }
+  if (salary.min) return `${salary.currency || "$"}${salary.min.toLocaleString()}+`;
+  if (salary.max) return `Up to ${salary.currency || "$"}${salary.max.toLocaleString()}`;
+  return "";
+};
 
 export default function JobsPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -119,13 +133,14 @@ export default function JobsPage() {
   };
 
   // Filter jobs based on search
-  const filterJobs = (jobList: JobMatch[]) => {
+  const filterJobs = (jobList: JobMatch[] | undefined | null): JobMatch[] => {
+    if (!jobList || !Array.isArray(jobList)) return [];
     if (!searchQuery) return jobList;
     const query = searchQuery.toLowerCase();
     return jobList.filter(match => 
-      match.job.title.toLowerCase().includes(query) || 
-      match.job.company.toLowerCase().includes(query) ||
-      match.job.location.toLowerCase().includes(query)
+      match.job?.title?.toLowerCase().includes(query) || 
+      match.job?.company?.toLowerCase().includes(query) ||
+      match.job?.location?.toLowerCase().includes(query)
     );
   };
 
@@ -195,9 +210,9 @@ export default function JobsPage() {
           <div className="flex items-center gap-1">
             <MapPin className="h-3 w-3" /> {match.job.location}
           </div>
-          {match.job.salary && (
+          {match.job.salary && formatSalary(match.job.salary) && (
             <div className="flex items-center gap-1">
-              <DollarSign className="h-3 w-3" /> {match.job.salary}
+              <DollarSign className="h-3 w-3" /> {formatSalary(match.job.salary)}
             </div>
           )}
           <div className="flex items-center gap-1">
@@ -294,7 +309,7 @@ export default function JobsPage() {
   );
 
   return (
-    <div className="h-full p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="h-full overflow-auto p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

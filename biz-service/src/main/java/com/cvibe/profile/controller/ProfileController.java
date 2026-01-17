@@ -2,9 +2,11 @@ package com.cvibe.profile.controller;
 
 import com.cvibe.common.dto.ApiResponse;
 import com.cvibe.common.security.UserPrincipal;
+import com.cvibe.profile.dto.EducationDto;
 import com.cvibe.profile.dto.ExperienceDto;
 import com.cvibe.profile.dto.ProfileDto;
 import com.cvibe.profile.dto.ProfileRequest;
+import com.cvibe.profile.dto.ProjectDto;
 import com.cvibe.profile.dto.SkillDto;
 import com.cvibe.profile.service.ProfileService;
 import jakarta.validation.Valid;
@@ -126,6 +128,100 @@ public class ProfileController {
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable UUID skillId) {
         profileService.deleteSkill(principal.getUserId(), skillId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    // ==================== Education Endpoints ====================
+
+    /**
+     * Get all educations for the current user.
+     */
+    @GetMapping("/educations")
+    public ResponseEntity<ApiResponse<List<EducationDto>>> getEducations(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        List<EducationDto> educations = profileService.getEducations(principal.getUserId());
+        return ResponseEntity.ok(ApiResponse.success(educations));
+    }
+
+    /**
+     * Add a new education.
+     */
+    @PostMapping("/educations")
+    public ResponseEntity<ApiResponse<EducationDto>> addEducation(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody EducationDto request) {
+        EducationDto education = profileService.addEducation(principal.getUserId(), request);
+        return ResponseEntity.ok(ApiResponse.success(education));
+    }
+
+    /**
+     * Update an existing education.
+     */
+    @PutMapping("/educations/{educationId}")
+    public ResponseEntity<ApiResponse<EducationDto>> updateEducation(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID educationId,
+            @Valid @RequestBody EducationDto request) {
+        EducationDto education = profileService.updateEducation(
+                principal.getUserId(), educationId, request);
+        return ResponseEntity.ok(ApiResponse.success(education));
+    }
+
+    /**
+     * Delete an education.
+     */
+    @DeleteMapping("/educations/{educationId}")
+    public ResponseEntity<ApiResponse<Void>> deleteEducation(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID educationId) {
+        profileService.deleteEducation(principal.getUserId(), educationId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    // ==================== Project Endpoints ====================
+
+    /**
+     * Get all projects for the current user.
+     */
+    @GetMapping("/projects")
+    public ResponseEntity<ApiResponse<List<ProjectDto>>> getProjects(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        List<ProjectDto> projects = profileService.getProjects(principal.getUserId());
+        return ResponseEntity.ok(ApiResponse.success(projects));
+    }
+
+    /**
+     * Add a new project.
+     */
+    @PostMapping("/projects")
+    public ResponseEntity<ApiResponse<ProjectDto>> addProject(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody ProjectDto request) {
+        ProjectDto project = profileService.addProject(principal.getUserId(), request);
+        return ResponseEntity.ok(ApiResponse.success(project));
+    }
+
+    /**
+     * Update an existing project.
+     */
+    @PutMapping("/projects/{projectId}")
+    public ResponseEntity<ApiResponse<ProjectDto>> updateProject(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID projectId,
+            @Valid @RequestBody ProjectDto request) {
+        ProjectDto project = profileService.updateProject(
+                principal.getUserId(), projectId, request);
+        return ResponseEntity.ok(ApiResponse.success(project));
+    }
+
+    /**
+     * Delete a project.
+     */
+    @DeleteMapping("/projects/{projectId}")
+    public ResponseEntity<ApiResponse<Void>> deleteProject(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID projectId) {
+        profileService.deleteProject(principal.getUserId(), projectId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

@@ -4,15 +4,21 @@ import com.cvibe.auth.entity.User;
 import com.cvibe.auth.repository.UserRepository;
 import com.cvibe.common.exception.BusinessException;
 import com.cvibe.common.exception.ErrorCode;
+import com.cvibe.profile.dto.EducationDto;
 import com.cvibe.profile.dto.ExperienceDto;
 import com.cvibe.profile.dto.ProfileDto;
 import com.cvibe.profile.dto.ProfileRequest;
+import com.cvibe.profile.dto.ProjectDto;
 import com.cvibe.profile.dto.SkillDto;
 import com.cvibe.profile.entity.EmploymentType;
+import com.cvibe.profile.entity.ProfileEducation;
 import com.cvibe.profile.entity.ProfileExperience;
+import com.cvibe.profile.entity.ProfileProject;
 import com.cvibe.profile.entity.ProfileSkill;
 import com.cvibe.profile.entity.UserProfile;
+import com.cvibe.profile.repository.ProfileEducationRepository;
 import com.cvibe.profile.repository.ProfileExperienceRepository;
+import com.cvibe.profile.repository.ProfileProjectRepository;
 import com.cvibe.profile.repository.ProfileSkillRepository;
 import com.cvibe.profile.repository.UserProfileRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -40,6 +46,8 @@ public class ProfileService {
 
     private final UserProfileRepository profileRepository;
     private final ProfileExperienceRepository experienceRepository;
+    private final ProfileEducationRepository educationRepository;
+    private final ProfileProjectRepository projectRepository;
     private final ProfileSkillRepository skillRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
@@ -215,6 +223,178 @@ public class ProfileService {
         profileRepository.save(profile);
     }
 
+    // ==================== Education Methods ====================
+
+    /**
+     * Get all educations for a user.
+     */
+    @Transactional(readOnly = true)
+    public List<EducationDto> getEducations(UUID userId) {
+        UserProfile profile = getOrCreateProfileEntity(userId);
+        List<ProfileEducation> educations = educationRepository.findByProfileOrderByStartDateDesc(profile);
+        return educations.stream()
+                .map(this::toEducationDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Add a new education.
+     */
+    @Transactional
+    public EducationDto addEducation(UUID userId, EducationDto dto) {
+        UserProfile profile = getOrCreateProfileEntity(userId);
+        
+        ProfileEducation education = ProfileEducation.builder()
+                .profile(profile)
+                .school(dto.getSchool())
+                .degree(dto.getDegree())
+                .fieldOfStudy(dto.getFieldOfStudy())
+                .location(dto.getLocation())
+                .startDate(parseDate(dto.getStartDate()))
+                .endDate(dto.getEndDate() != null ? parseDate(dto.getEndDate()) : null)
+                .isCurrent(dto.getIsCurrent() != null ? dto.getIsCurrent() : false)
+                .gpa(dto.getGpa())
+                .description(dto.getDescription())
+                .activities(toJsonArray(dto.getActivities()))
+                .build();
+        
+        education = educationRepository.save(education);
+        return toEducationDto(education);
+    }
+
+    /**
+     * Update an existing education.
+     */
+    @Transactional
+    public EducationDto updateEducation(UUID userId, UUID educationId, EducationDto dto) {
+        UserProfile profile = getOrCreateProfileEntity(userId);
+        
+        ProfileEducation education = educationRepository.findById(educationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.EDUCATION_NOT_FOUND));
+        
+        // Verify ownership
+        if (!education.getProfile().getId().equals(profile.getId())) {
+            throw new BusinessException(ErrorCode.EDUCATION_NOT_FOUND);
+        }
+        
+        education.setSchool(dto.getSchool());
+        education.setDegree(dto.getDegree());
+        education.setFieldOfStudy(dto.getFieldOfStudy());
+        education.setLocation(dto.getLocation());
+        education.setStartDate(parseDate(dto.getStartDate()));
+        education.setEndDate(dto.getEndDate() != null ? parseDate(dto.getEndDate()) : null);
+        education.setIsCurrent(dto.getIsCurrent() != null ? dto.getIsCurrent() : false);
+        education.setGpa(dto.getGpa());
+        education.setDescription(dto.getDescription());
+        education.setActivities(toJsonArray(dto.getActivities()));
+        
+        education = educationRepository.save(education);
+        return toEducationDto(education);
+    }
+
+    /**
+     * Delete an education.
+     */
+    @Transactional
+    public void deleteEducation(UUID userId, UUID educationId) {
+        UserProfile profile = getOrCreateProfileEntity(userId);
+        
+        ProfileEducation education = educationRepository.findById(educationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.EDUCATION_NOT_FOUND));
+        
+        // Verify ownership
+        if (!education.getProfile().getId().equals(profile.getId())) {
+            throw new BusinessException(ErrorCode.EDUCATION_NOT_FOUND);
+        }
+        
+        educationRepository.delete(education);
+    }
+
+    // ==================== Project Methods ====================
+
+    /**
+     * Get all projects for a user.
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectDto> getProjects(UUID userId) {
+        UserProfile profile = getOrCreateProfileEntity(userId);
+        List<ProfileProject> projects = projectRepository.findByProfileOrderByStartDateDesc(profile);
+        return projects.stream()
+                .map(this::toProjectDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Add a new project.
+     */
+    @Transactional
+    public ProjectDto addProject(UUID userId, ProjectDto dto) {
+        UserProfile profile = getOrCreateProfileEntity(userId);
+        
+        ProfileProject project = ProfileProject.builder()
+                .profile(profile)
+                .name(dto.getName())
+                .description(dto.getDescription())
+                .url(dto.getUrl())
+                .repoUrl(dto.getRepoUrl())
+                .technologies(toJsonArray(dto.getTechnologies()))
+                .startDate(parseDate(dto.getStartDate()))
+                .endDate(dto.getEndDate() != null ? parseDate(dto.getEndDate()) : null)
+                .isCurrent(dto.getIsCurrent() != null ? dto.getIsCurrent() : false)
+                .highlights(toJsonArray(dto.getHighlights()))
+                .build();
+        
+        project = projectRepository.save(project);
+        return toProjectDto(project);
+    }
+
+    /**
+     * Update an existing project.
+     */
+    @Transactional
+    public ProjectDto updateProject(UUID userId, UUID projectId, ProjectDto dto) {
+        UserProfile profile = getOrCreateProfileEntity(userId);
+        
+        ProfileProject project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_NOT_FOUND));
+        
+        // Verify ownership
+        if (!project.getProfile().getId().equals(profile.getId())) {
+            throw new BusinessException(ErrorCode.PROJECT_NOT_FOUND);
+        }
+        
+        project.setName(dto.getName());
+        project.setDescription(dto.getDescription());
+        project.setUrl(dto.getUrl());
+        project.setRepoUrl(dto.getRepoUrl());
+        project.setTechnologies(toJsonArray(dto.getTechnologies()));
+        project.setStartDate(parseDate(dto.getStartDate()));
+        project.setEndDate(dto.getEndDate() != null ? parseDate(dto.getEndDate()) : null);
+        project.setIsCurrent(dto.getIsCurrent() != null ? dto.getIsCurrent() : false);
+        project.setHighlights(toJsonArray(dto.getHighlights()));
+        
+        project = projectRepository.save(project);
+        return toProjectDto(project);
+    }
+
+    /**
+     * Delete a project.
+     */
+    @Transactional
+    public void deleteProject(UUID userId, UUID projectId) {
+        UserProfile profile = getOrCreateProfileEntity(userId);
+        
+        ProfileProject project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PROJECT_NOT_FOUND));
+        
+        // Verify ownership
+        if (!project.getProfile().getId().equals(profile.getId())) {
+            throw new BusinessException(ErrorCode.PROJECT_NOT_FOUND);
+        }
+        
+        projectRepository.delete(project);
+    }
+
     // ==================== Helper Methods ====================
 
     private UserProfile getOrCreateProfileEntity(UUID userId) {
@@ -274,6 +454,41 @@ public class ProfileService {
                 .id(skill.getId().toString())
                 .name(skill.getName())
                 .level(skill.getLevel())
+                .build();
+    }
+
+    private EducationDto toEducationDto(ProfileEducation education) {
+        return EducationDto.builder()
+                .id(education.getId().toString())
+                .school(education.getSchool())
+                .degree(education.getDegree())
+                .fieldOfStudy(education.getFieldOfStudy())
+                .location(education.getLocation())
+                .startDate(education.getStartDate() != null 
+                        ? education.getStartDate().format(DATE_FORMATTER) : null)
+                .endDate(education.getEndDate() != null 
+                        ? education.getEndDate().format(DATE_FORMATTER) : null)
+                .isCurrent(education.getIsCurrent())
+                .gpa(education.getGpa())
+                .description(education.getDescription())
+                .activities(parseJsonArray(education.getActivities()))
+                .build();
+    }
+
+    private ProjectDto toProjectDto(ProfileProject project) {
+        return ProjectDto.builder()
+                .id(project.getId().toString())
+                .name(project.getName())
+                .description(project.getDescription())
+                .url(project.getUrl())
+                .repoUrl(project.getRepoUrl())
+                .technologies(parseJsonArray(project.getTechnologies()))
+                .startDate(project.getStartDate() != null 
+                        ? project.getStartDate().format(DATE_FORMATTER) : null)
+                .endDate(project.getEndDate() != null 
+                        ? project.getEndDate().format(DATE_FORMATTER) : null)
+                .isCurrent(project.getIsCurrent())
+                .highlights(parseJsonArray(project.getHighlights()))
                 .build();
     }
 

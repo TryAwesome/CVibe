@@ -105,7 +105,7 @@ export default function ResumeBuilderPage() {
     try {
       const res = await api.generateResume({
         templateId: selectedTemplate,
-        targetJob: targetJob || undefined,
+        targetPosition: targetJob || "Software Engineer",
         targetCompany: targetCompany || undefined,
       });
 

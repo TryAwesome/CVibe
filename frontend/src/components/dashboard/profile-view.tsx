@@ -4,18 +4,22 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Pencil, Briefcase, Loader2, Trash2, X, Check, Code } from "lucide-react";
+import { Plus, Pencil, Briefcase, Loader2, Trash2, X, Check, Code, GraduationCap, FolderGit2, Award, Languages } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import api, { Profile, Experience, Skill, AddExperienceRequest } from "@/lib/api";
+import api, { Profile, Experience, Skill, Education, Project, AddExperienceRequest, AddEducationRequest, AddProjectRequest } from "@/lib/api";
 
 export function ProfileView() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [experiences, setExperiences] = useState<Experience[]>([]);
+  const [educations, setEducations] = useState<Education[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingExperience, setEditingExperience] = useState<Experience | null>(null);
+  const [editingEducation, setEditingEducation] = useState<Education | null>(null);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [newSkill, setNewSkill] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -26,26 +30,31 @@ export function ProfileView() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [profileRes, experiencesRes, skillsRes] = await Promise.all([
+      const [profileRes, experiencesRes, educationsRes, projectsRes, skillsRes] = await Promise.all([
         api.getProfile(),
         api.getExperiences(),
+        api.getEducations(),
+        api.getProjects(),
         api.getSkills(),
       ]);
       if (profileRes.success && profileRes.data) setProfile(profileRes.data);
       if (experiencesRes.success && experiencesRes.data) setExperiences(experiencesRes.data);
+      if (educationsRes.success && educationsRes.data) setEducations(educationsRes.data);
+      if (projectsRes.success && projectsRes.data) setProjects(projectsRes.data);
       if (skillsRes.success && skillsRes.data) setSkills(skillsRes.data);
     } catch (error) {
       console.error("Failed to load profile data:", error);
-      toast.error("加载数据失败");
+      toast.error("Failed to load data");
     } finally {
       setLoading(false);
     }
   };
 
+  // ==================== Experience Methods ====================
   const addExperience = async () => {
     try {
       setSaving(true);
-      const today = new Date().toISOString().split('T')[0]; // yyyy-MM-dd
+      const today = new Date().toISOString().split('T')[0];
       const request: AddExperienceRequest = {
         company: "New Company",
         title: "New Position",
@@ -57,13 +66,13 @@ export function ProfileView() {
       if (res.success && res.data) {
         setExperiences(prev => [...prev, res.data!]);
         setEditingExperience(res.data);
-        toast.success("经历已添加");
+        toast.success("Experience added");
       } else {
-        toast.error(res.error?.message || "添加失败");
+        toast.error(res.error || "Failed to add");
       }
     } catch (error) {
       console.error("Failed to add experience:", error);
-      toast.error("添加经历失败");
+      toast.error("Failed to add experience");
     } finally {
       setSaving(false);
     }
@@ -76,13 +85,13 @@ export function ProfileView() {
       if (res.success) {
         setExperiences(prev => prev.map(e => e.id === exp.id ? exp : e));
         setEditingExperience(null);
-        toast.success("经历已更新");
+        toast.success("Experience updated");
       } else {
-        toast.error(res.error?.message || "更新失败");
+        toast.error(res.error || "Failed to update");
       }
     } catch (error) {
       console.error("Failed to update experience:", error);
-      toast.error("更新经历失败");
+      toast.error("Failed to update experience");
     } finally {
       setSaving(false);
     }
@@ -94,18 +103,142 @@ export function ProfileView() {
       const res = await api.deleteExperience(id);
       if (res.success) {
         setExperiences(prev => prev.filter(e => e.id !== id));
-        toast.success("经历已删除");
+        toast.success("Experience deleted");
       } else {
-        toast.error(res.error?.message || "删除失败");
+        toast.error(res.error || "Failed to delete");
       }
     } catch (error) {
       console.error("Failed to delete experience:", error);
-      toast.error("删除经历失败");
+      toast.error("Failed to delete experience");
     } finally {
       setSaving(false);
     }
   };
 
+  // ==================== Education Methods ====================
+  const addEducation = async () => {
+    try {
+      setSaving(true);
+      const request: AddEducationRequest = {
+        school: "New School",
+        degree: "Bachelor's",
+        isCurrent: true,
+      };
+      const res = await api.createEducation(request);
+      if (res.success && res.data) {
+        setEducations(prev => [...prev, res.data!]);
+        setEditingEducation(res.data);
+        toast.success("Education added");
+      } else {
+        toast.error(res.error || "Failed to add");
+      }
+    } catch (error) {
+      console.error("Failed to add education:", error);
+      toast.error("Failed to add education");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateEducation = async (edu: Education) => {
+    try {
+      setSaving(true);
+      const res = await api.updateEducation(String(edu.id), edu);
+      if (res.success) {
+        setEducations(prev => prev.map(e => e.id === edu.id ? edu : e));
+        setEditingEducation(null);
+        toast.success("Education updated");
+      } else {
+        toast.error(res.error || "Failed to update");
+      }
+    } catch (error) {
+      console.error("Failed to update education:", error);
+      toast.error("Failed to update education");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteEducation = async (id: string) => {
+    try {
+      setSaving(true);
+      const res = await api.deleteEducation(id);
+      if (res.success) {
+        setEducations(prev => prev.filter(e => e.id !== id));
+        toast.success("Education deleted");
+      } else {
+        toast.error(res.error || "Failed to delete");
+      }
+    } catch (error) {
+      console.error("Failed to delete education:", error);
+      toast.error("Failed to delete education");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ==================== Project Methods ====================
+  const addProject = async () => {
+    try {
+      setSaving(true);
+      const request: AddProjectRequest = {
+        name: "New Project",
+        isCurrent: false,
+      };
+      const res = await api.createProject(request);
+      if (res.success && res.data) {
+        setProjects(prev => [...prev, res.data!]);
+        setEditingProject(res.data);
+        toast.success("Project added");
+      } else {
+        toast.error(res.error || "Failed to add");
+      }
+    } catch (error) {
+      console.error("Failed to add project:", error);
+      toast.error("Failed to add project");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateProject = async (proj: Project) => {
+    try {
+      setSaving(true);
+      const res = await api.updateProject(String(proj.id), proj);
+      if (res.success) {
+        setProjects(prev => prev.map(p => p.id === proj.id ? proj : p));
+        setEditingProject(null);
+        toast.success("Project updated");
+      } else {
+        toast.error(res.error || "Failed to update");
+      }
+    } catch (error) {
+      console.error("Failed to update project:", error);
+      toast.error("Failed to update project");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteProject = async (id: string) => {
+    try {
+      setSaving(true);
+      const res = await api.deleteProject(id);
+      if (res.success) {
+        setProjects(prev => prev.filter(p => p.id !== id));
+        toast.success("Project deleted");
+      } else {
+        toast.error(res.error || "Failed to delete");
+      }
+    } catch (error) {
+      console.error("Failed to delete project:", error);
+      toast.error("Failed to delete project");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ==================== Skill Methods ====================
   const addSkill = async () => {
     if (!newSkill.trim()) return;
     try {
@@ -114,13 +247,13 @@ export function ProfileView() {
       if (res.success && res.data) {
         setSkills(prev => [...prev, res.data!]);
         setNewSkill("");
-        toast.success("技能已添加");
+        toast.success("Skill added");
       } else {
-        toast.error(res.error?.message || "添加技能失败");
+        toast.error(res.error || "Failed to add skill");
       }
     } catch (error) {
       console.error("Failed to add skill:", error);
-      toast.error("添加技能失败");
+      toast.error("Failed to add skill");
     } finally {
       setSaving(false);
     }
@@ -132,13 +265,13 @@ export function ProfileView() {
       const res = await api.deleteSkill(id);
       if (res.success) {
         setSkills(prev => prev.filter(s => s.id !== id));
-        toast.success("技能已删除");
+        toast.success("Skill deleted");
       } else {
-        toast.error(res.error?.message || "删除技能失败");
+        toast.error(res.error || "Failed to delete skill");
       }
     } catch (error) {
       console.error("Failed to delete skill:", error);
-      toast.error("删除技能失败");
+      toast.error("Failed to delete skill");
     } finally {
       setSaving(false);
     }
@@ -152,13 +285,14 @@ export function ProfileView() {
     );
   }
 
+  // ==================== Experience Item Component ====================
   const ExperienceItem = ({ exp }: { exp: Experience }) => {
     if (editingExperience?.id === exp.id) {
       return (
         <div className="p-4 rounded-lg border bg-background space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-muted-foreground">职位名称</label>
+              <label className="text-xs text-muted-foreground">Job Title</label>
               <Input
                 placeholder="Title / Position"
                 value={editingExperience.title}
@@ -166,7 +300,7 @@ export function ProfileView() {
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">公司名称</label>
+              <label className="text-xs text-muted-foreground">Company Name</label>
               <Input
                 placeholder="Company Name"
                 value={editingExperience.company || ""}
@@ -176,7 +310,7 @@ export function ProfileView() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-muted-foreground">地点</label>
+              <label className="text-xs text-muted-foreground">Location</label>
               <Input
                 placeholder="Location"
                 value={editingExperience.location || ""}
@@ -184,7 +318,7 @@ export function ProfileView() {
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">雇佣类型</label>
+              <label className="text-xs text-muted-foreground">Employment Type</label>
               <Select
                 value={editingExperience.employmentType || "FULL_TIME"}
                 onValueChange={(v) => setEditingExperience({ ...editingExperience, employmentType: v as Experience['employmentType'] })}
@@ -193,18 +327,18 @@ export function ProfileView() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="FULL_TIME">全职</SelectItem>
-                  <SelectItem value="PART_TIME">兼职</SelectItem>
-                  <SelectItem value="CONTRACT">合同</SelectItem>
-                  <SelectItem value="INTERNSHIP">实习</SelectItem>
-                  <SelectItem value="FREELANCE">自由职业</SelectItem>
+                  <SelectItem value="FULL_TIME">Full Time</SelectItem>
+                  <SelectItem value="PART_TIME">Part Time</SelectItem>
+                  <SelectItem value="CONTRACT">Contract</SelectItem>
+                  <SelectItem value="INTERNSHIP">Internship</SelectItem>
+                  <SelectItem value="FREELANCE">Freelance</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-muted-foreground">开始日期</label>
+              <label className="text-xs text-muted-foreground">Start Date</label>
               <Input
                 type="date"
                 value={editingExperience.startDate || ""}
@@ -212,7 +346,7 @@ export function ProfileView() {
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">结束日期</label>
+              <label className="text-xs text-muted-foreground">End Date</label>
               <Input
                 type="date"
                 value={editingExperience.endDate || ""}
@@ -227,10 +361,10 @@ export function ProfileView() {
               checked={editingExperience.isCurrent || false}
               onChange={(e) => setEditingExperience({ ...editingExperience, isCurrent: e.target.checked, endDate: e.target.checked ? undefined : editingExperience.endDate })}
             />
-            目前仍在职
+            Currently Working Here
           </label>
           <div>
-            <label className="text-xs text-muted-foreground">描述</label>
+            <label className="text-xs text-muted-foreground">Description</label>
             <textarea
               placeholder="Description"
               className="w-full p-2 rounded border text-sm min-h-[80px]"
@@ -240,10 +374,10 @@ export function ProfileView() {
           </div>
           <div className="flex justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => setEditingExperience(null)} disabled={saving}>
-              <X className="h-4 w-4 mr-1" /> 取消
+              <X className="h-4 w-4 mr-1" /> Cancel
             </Button>
             <Button size="sm" onClick={() => updateExperience(editingExperience)} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />} 保存
+              {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />} Save
             </Button>
           </div>
         </div>
@@ -251,11 +385,11 @@ export function ProfileView() {
     }
 
     const typeLabel = {
-      FULL_TIME: "全职",
-      PART_TIME: "兼职",
-      CONTRACT: "合同",
-      INTERNSHIP: "实习",
-      FREELANCE: "自由职业",
+      FULL_TIME: "Full Time",
+      PART_TIME: "Part Time",
+      CONTRACT: "Contract",
+      INTERNSHIP: "Internship",
+      FREELANCE: "Freelance",
     }[exp.employmentType || "FULL_TIME"];
 
     return (
@@ -272,7 +406,7 @@ export function ProfileView() {
           )}
           {(exp.startDate || exp.endDate) && (
             <p className="text-xs text-muted-foreground mt-1">
-              {exp.startDate} - {exp.isCurrent ? "至今" : exp.endDate || ""}
+              {exp.startDate} - {exp.isCurrent ? "Present" : exp.endDate || ""}
             </p>
           )}
           {exp.description && (
@@ -291,6 +425,263 @@ export function ProfileView() {
     );
   };
 
+  // ==================== Education Item Component ====================
+  const EducationItem = ({ edu }: { edu: Education }) => {
+    if (editingEducation?.id === edu.id) {
+      return (
+        <div className="p-4 rounded-lg border bg-background space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">School</label>
+              <Input
+                placeholder="University / School Name"
+                value={editingEducation.school}
+                onChange={(e) => setEditingEducation({ ...editingEducation, school: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Degree</label>
+              <Input
+                placeholder="e.g. Bachelor's, Master's"
+                value={editingEducation.degree || ""}
+                onChange={(e) => setEditingEducation({ ...editingEducation, degree: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Field of Study</label>
+              <Input
+                placeholder="e.g. Computer Science"
+                value={editingEducation.fieldOfStudy || ""}
+                onChange={(e) => setEditingEducation({ ...editingEducation, fieldOfStudy: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">GPA</label>
+              <Input
+                placeholder="e.g. 3.8/4.0"
+                value={editingEducation.gpa || ""}
+                onChange={(e) => setEditingEducation({ ...editingEducation, gpa: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Start Date</label>
+              <Input
+                type="date"
+                value={editingEducation.startDate || ""}
+                onChange={(e) => setEditingEducation({ ...editingEducation, startDate: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">End Date</label>
+              <Input
+                type="date"
+                value={editingEducation.endDate || ""}
+                onChange={(e) => setEditingEducation({ ...editingEducation, endDate: e.target.value })}
+                disabled={editingEducation.isCurrent}
+              />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={editingEducation.isCurrent || false}
+              onChange={(e) => setEditingEducation({ ...editingEducation, isCurrent: e.target.checked, endDate: e.target.checked ? undefined : editingEducation.endDate })}
+            />
+            Currently Studying Here
+          </label>
+          <div>
+            <label className="text-xs text-muted-foreground">Description / Activities</label>
+            <textarea
+              placeholder="Relevant courses, clubs, achievements..."
+              className="w-full p-2 rounded border text-sm min-h-[80px]"
+              value={editingEducation.description || ""}
+              onChange={(e) => setEditingEducation({ ...editingEducation, description: e.target.value })}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setEditingEducation(null)} disabled={saving}>
+              <X className="h-4 w-4 mr-1" /> Cancel
+            </Button>
+            <Button size="sm" onClick={() => updateEducation(editingEducation)} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />} Save
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="p-4 rounded-lg border bg-muted/20 flex justify-between items-start">
+        <div>
+          <h4 className="font-semibold">{edu.school || "Untitled"}</h4>
+          {(edu.degree || edu.fieldOfStudy) && (
+            <p className="text-sm text-muted-foreground">
+              {edu.degree}{edu.degree && edu.fieldOfStudy && " in "}{edu.fieldOfStudy}
+            </p>
+          )}
+          {edu.gpa && (
+            <Badge variant="outline" className="text-xs mt-1">GPA: {edu.gpa}</Badge>
+          )}
+          {(edu.startDate || edu.endDate) && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {edu.startDate} - {edu.isCurrent ? "Present" : edu.endDate || ""}
+            </p>
+          )}
+          {edu.description && (
+            <p className="text-sm text-muted-foreground mt-2">{edu.description}</p>
+          )}
+        </div>
+        <div className="flex gap-1">
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingEducation(edu)}>
+            <Pencil className="h-3 w-3" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => deleteEducation(edu.id)}>
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // ==================== Project Item Component ====================
+  const ProjectItem = ({ proj }: { proj: Project }) => {
+    if (editingProject?.id === proj.id) {
+      return (
+        <div className="p-4 rounded-lg border bg-background space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Project Name</label>
+              <Input
+                placeholder="Project Name"
+                value={editingProject.name}
+                onChange={(e) => setEditingProject({ ...editingProject, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Project URL</label>
+              <Input
+                placeholder="https://example.com"
+                value={editingProject.url || ""}
+                onChange={(e) => setEditingProject({ ...editingProject, url: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Repository URL</label>
+              <Input
+                placeholder="https://github.com/..."
+                value={editingProject.repoUrl || ""}
+                onChange={(e) => setEditingProject({ ...editingProject, repoUrl: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Technologies (comma-separated)</label>
+              <Input
+                placeholder="React, Node.js, PostgreSQL"
+                value={editingProject.technologies?.join(", ") || ""}
+                onChange={(e) => setEditingProject({ ...editingProject, technologies: e.target.value.split(",").map(t => t.trim()).filter(t => t) })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Start Date</label>
+              <Input
+                type="date"
+                value={editingProject.startDate || ""}
+                onChange={(e) => setEditingProject({ ...editingProject, startDate: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">End Date</label>
+              <Input
+                type="date"
+                value={editingProject.endDate || ""}
+                onChange={(e) => setEditingProject({ ...editingProject, endDate: e.target.value })}
+                disabled={editingProject.isCurrent}
+              />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={editingProject.isCurrent || false}
+              onChange={(e) => setEditingProject({ ...editingProject, isCurrent: e.target.checked, endDate: e.target.checked ? undefined : editingProject.endDate })}
+            />
+            Currently Working on This
+          </label>
+          <div>
+            <label className="text-xs text-muted-foreground">Description</label>
+            <textarea
+              placeholder="Describe the project, your role, and key features..."
+              className="w-full p-2 rounded border text-sm min-h-[80px]"
+              value={editingProject.description || ""}
+              onChange={(e) => setEditingProject({ ...editingProject, description: e.target.value })}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setEditingProject(null)} disabled={saving}>
+              <X className="h-4 w-4 mr-1" /> Cancel
+            </Button>
+            <Button size="sm" onClick={() => updateProject(editingProject)} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />} Save
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="p-4 rounded-lg border bg-muted/20 flex justify-between items-start">
+        <div>
+          <h4 className="font-semibold">{proj.name || "Untitled"}</h4>
+          {proj.description && (
+            <p className="text-sm text-muted-foreground mt-1">{proj.description}</p>
+          )}
+          {proj.technologies && proj.technologies.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {proj.technologies.map((tech, idx) => (
+                <Badge key={idx} variant="secondary" className="text-xs">{tech}</Badge>
+              ))}
+            </div>
+          )}
+          {(proj.startDate || proj.endDate) && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {proj.startDate} - {proj.isCurrent ? "Present" : proj.endDate || ""}
+            </p>
+          )}
+          {(proj.url || proj.repoUrl) && (
+            <div className="flex gap-3 mt-2">
+              {proj.url && (
+                <a href={proj.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
+                  View Project
+                </a>
+              )}
+              {proj.repoUrl && (
+                <a href={proj.repoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
+                  View Code
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="flex gap-1">
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingProject(proj)}>
+            <Pencil className="h-3 w-3" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => deleteProject(proj.id)}>
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Work Experience Module */}
@@ -298,18 +689,39 @@ export function ProfileView() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div className="flex items-center gap-2">
             <Briefcase className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">工作经历</CardTitle>
+            <CardTitle className="text-lg">Work Experience</CardTitle>
           </div>
           <Button size="sm" variant="outline" onClick={addExperience} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
-            添加经历
+            Add Experience
           </Button>
         </CardHeader>
         <CardContent className="grid gap-4">
           {experiences.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">暂无工作经历，点击上方按钮添加</p>
+            <p className="text-sm text-muted-foreground text-center py-4">No work experience yet. Click the button above to add.</p>
           ) : (
             experiences.map(exp => <ExperienceItem key={exp.id} exp={exp} />)
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Education Module */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2">
+            <GraduationCap className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg">Education</CardTitle>
+          </div>
+          <Button size="sm" variant="outline" onClick={addEducation} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+            Add Education
+          </Button>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          {educations.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No education yet. Click the button above to add.</p>
+          ) : (
+            educations.map(edu => <EducationItem key={edu.id} edu={edu} />)
           )}
         </CardContent>
       </Card>
@@ -319,13 +731,13 @@ export function ProfileView() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div className="flex items-center gap-2">
             <Code className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">技能</CardTitle>
+            <CardTitle className="text-lg">Skills</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2 mb-4">
             {skills.length === 0 ? (
-              <p className="text-sm text-muted-foreground">暂无技能，请在下方添加</p>
+              <p className="text-sm text-muted-foreground">No skills yet. Add below.</p>
             ) : (
               skills.map(skill => (
                 <Badge key={skill.id} variant="secondary" className="px-3 py-1">
@@ -343,15 +755,76 @@ export function ProfileView() {
           </div>
           <div className="flex gap-2">
             <Input
-              placeholder="添加新技能..."
+              placeholder="Add a new skill..."
               value={newSkill}
               onChange={(e) => setNewSkill(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addSkill()}
             />
             <Button onClick={addSkill} disabled={!newSkill.trim() || saving}>
-              {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />} 添加
+              {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />} Add
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Projects Module */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FolderGit2 className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg">Projects</CardTitle>
+          </div>
+          <Button size="sm" variant="outline" onClick={addProject} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+            Add Project
+          </Button>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          {projects.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No projects yet. Click the button above to add.</p>
+          ) : (
+            projects.map(proj => <ProjectItem key={proj.id} proj={proj} />)
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Certifications Module - Coming Soon */}
+      <Card className="opacity-75">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Award className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg">Certifications & Awards</CardTitle>
+            <Badge variant="outline" className="text-xs">Coming Soon</Badge>
+          </div>
+          <Button size="sm" variant="outline" disabled>
+            <Plus className="h-4 w-4 mr-1" />
+            Add Certification
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground text-center py-4">
+            Certifications and awards will be available soon. Stay tuned!
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Languages Module - Coming Soon */}
+      <Card className="opacity-75">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Languages className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg">Languages</CardTitle>
+            <Badge variant="outline" className="text-xs">Coming Soon</Badge>
+          </div>
+          <Button size="sm" variant="outline" disabled>
+            <Plus className="h-4 w-4 mr-1" />
+            Add Language
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground text-center py-4">
+            Language proficiency will be available soon. Stay tuned!
+          </p>
         </CardContent>
       </Card>
     </div>

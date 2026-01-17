@@ -54,7 +54,7 @@ export default function CommunityPage() {
     if (!newPost.trim()) return;
     setIsPosting(true);
     try {
-      const res = await api.createPost({ content: newPost });
+      const res = await api.createPost({ content: newPost, category: "DISCUSSION" });
       if (res.success && res.data) {
         setPosts([res.data, ...posts]);
         setNewPost("");
