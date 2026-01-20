@@ -8,6 +8,9 @@ interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
+  message?: string;
+  errorCode?: number;  // 错误码 (来自后端)
+  timestamp?: string;  // 时间戳
   meta?: {
     timestamp: string;
   };
@@ -179,12 +182,18 @@ class ApiClient {
     return this.request<void>(`/v1/jobs/matches/${matchId}/apply`, { method: 'POST' });
   }
 
-  async getSavedJobs(): Promise<ApiResponse<JobMatch[]>> {
-    return this.request<JobMatch[]>('/v1/jobs/saved');
+  async getSavedJobs(page?: number, size?: number): Promise<ApiResponse<PagedResponse<Job>>> {
+    const query = new URLSearchParams();
+    if (page) query.append('page', page.toString());
+    if (size) query.append('size', size.toString());
+    return this.request<PagedResponse<Job>>(`/v1/jobs/saved?${query.toString()}`);
   }
 
-  async getAppliedJobs(): Promise<ApiResponse<JobMatch[]>> {
-    return this.request<JobMatch[]>('/v1/jobs/applied');
+  async getAppliedJobs(page?: number, size?: number): Promise<ApiResponse<PagedResponse<JobMatch>>> {
+    const query = new URLSearchParams();
+    if (page) query.append('page', page.toString());
+    if (size) query.append('size', size.toString());
+    return this.request<PagedResponse<JobMatch>>(`/v1/jobs/applied?${query.toString()}`);
   }
 
   // ==================== Resume API ====================
@@ -203,7 +212,17 @@ class ApiClient {
       headers,
       body: formData,
     });
-    return response.json();
+    const json = await response.json();
+    
+    // Backend returns { success, data: { resume, parseStatus, message } }
+    // We need to extract the resume from the nested response
+    if (json.success && json.data?.resume) {
+      return {
+        success: true,
+        data: json.data.resume,
+      };
+    }
+    return json;
   }
 
   async getResumes(): Promise<ApiResponse<Resume[]>> {
@@ -226,51 +245,71 @@ class ApiClient {
     return this.request<void>(`/resumes/${resumeId}`, { method: 'DELETE' });
   }
 
+  /**
+   * Reparse a resume using AI Engine
+   * Used when AI service is restored or to use new AI model version
+   */
+  async reparseResume(resumeId: string): Promise<ApiResponse<Resume>> {
+    return this.request<Resume>(`/resumes/${resumeId}/reparse`, { method: 'POST' });
+  }
+
+  /**
+   * Sync resume parsed data to user profile
+   * Imports experiences, education, skills, and projects from resume
+   */
+  async syncResumeToProfile(resumeId: string, options?: SyncToProfileOptions): Promise<ApiResponse<SyncToProfileResult>> {
+    return this.request<SyncToProfileResult>(`/resumes/${resumeId}/sync-to-profile`, {
+      method: 'POST',
+      body: JSON.stringify(options || {}),
+    });
+  }
+
   // ==================== Resume Builder API ====================
+  // 注意：后端路径是 /api/resume-builder (无 /v1 前缀)
   async getTemplates(): Promise<ApiResponse<ResumeTemplate[]>> {
-    return this.request<ResumeTemplate[]>('/v1/resume-builder/templates');
+    return this.request<ResumeTemplate[]>('/resume-builder/templates');
   }
 
   async getFeaturedTemplates(): Promise<ApiResponse<ResumeTemplate[]>> {
-    return this.request<ResumeTemplate[]>('/v1/resume-builder/templates/featured');
+    return this.request<ResumeTemplate[]>('/resume-builder/templates/featured');
   }
 
   async getTemplatesByCategory(category: string): Promise<ApiResponse<ResumeTemplate[]>> {
-    return this.request<ResumeTemplate[]>(`/v1/resume-builder/templates/category/${category}`);
+    return this.request<ResumeTemplate[]>(`/resume-builder/templates/category/${category}`);
   }
 
   async getMyTemplates(): Promise<ApiResponse<ResumeTemplate[]>> {
-    return this.request<ResumeTemplate[]>('/v1/resume-builder/templates/my');
+    return this.request<ResumeTemplate[]>('/resume-builder/templates/my');
   }
 
   async getTemplateContent(templateId: string): Promise<ApiResponse<{ latexTemplate: string }>> {
-    return this.request<{ latexTemplate: string }>(`/v1/resume-builder/templates/${templateId}/content`);
+    return this.request<{ latexTemplate: string }>(`/resume-builder/templates/${templateId}/content`);
   }
 
   async generateResume(request: GenerateResumeRequest): Promise<ApiResponse<ResumeGeneration>> {
-    return this.request<ResumeGeneration>('/v1/resume-builder/generate', {
+    return this.request<ResumeGeneration>('/resume-builder/generate', {
       method: 'POST',
       body: JSON.stringify(request),
     });
   }
 
   async getGenerations(): Promise<ApiResponse<ResumeGeneration[]>> {
-    return this.request<ResumeGeneration[]>('/v1/resume-builder/generations');
+    return this.request<ResumeGeneration[]>('/resume-builder/generations');
   }
 
   async getGenerationById(generationId: string): Promise<ApiResponse<ResumeGeneration>> {
-    return this.request<ResumeGeneration>(`/v1/resume-builder/generations/${generationId}`);
+    return this.request<ResumeGeneration>(`/resume-builder/generations/${generationId}`);
   }
 
   async updateGenerationLatex(generationId: string, latexContent: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/v1/resume-builder/generations/${generationId}/latex`, {
+    return this.request<void>(`/resume-builder/generations/${generationId}/latex`, {
       method: 'PUT',
       body: JSON.stringify({ latexContent }),
     });
   }
 
   async exportGeneration(generationId: string, format: 'pdf' | 'latex'): Promise<ApiResponse<{ downloadUrl: string }>> {
-    return this.request<{ downloadUrl: string }>(`/v1/resume-builder/generations/${generationId}/export`, {
+    return this.request<{ downloadUrl: string }>(`/resume-builder/generations/${generationId}/export`, {
       method: 'POST',
       body: JSON.stringify({ format }),
     });
@@ -313,6 +352,46 @@ class ApiClient {
 
   async deleteInterviewSession(sessionId: string): Promise<ApiResponse<void>> {
     return this.request<void>(`/v1/interviews/sessions/${sessionId}`, { method: 'DELETE' });
+  }
+
+  // ==================== Profile Interview API (AI-powered Multi-Agent) ====================
+
+  /**
+   * Start a Profile Interview session for deep background collection
+   * This uses the Multi-Agent architecture (Questioner, Analyzer, Summarizer)
+   */
+  async startProfileInterview(request: StartProfileInterviewRequest = {}): Promise<ApiResponse<ProfileInterviewStartResponse>> {
+    return this.request<ProfileInterviewStartResponse>('/v1/interviews/profile/start', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  /**
+   * Send a message in a Profile Interview session
+   * Returns the AI's response including follow-up questions
+   */
+  async sendProfileInterviewMessage(sessionId: string, message: string): Promise<ApiResponse<ProfileInterviewMessageResponse>> {
+    return this.request<ProfileInterviewMessageResponse>(`/v1/interviews/profile/${sessionId}/message`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
+  }
+
+  /**
+   * Get the current state of a Profile Interview session
+   */
+  async getProfileInterviewState(sessionId: string): Promise<ApiResponse<ProfileInterviewStateResponse>> {
+    return this.request<ProfileInterviewStateResponse>(`/v1/interviews/profile/${sessionId}/state`);
+  }
+
+  /**
+   * Finish the Profile Interview and sync collected data to profile
+   */
+  async finishProfileInterview(sessionId: string): Promise<ApiResponse<ProfileInterviewFinishResponse>> {
+    return this.request<ProfileInterviewFinishResponse>(`/v1/interviews/profile/${sessionId}/finish`, {
+      method: 'POST',
+    });
   }
 
   // ==================== Mock Interview API ====================
@@ -625,6 +704,52 @@ class ApiClient {
   async deleteProject(projectId: string): Promise<ApiResponse<void>> {
     return this.request<void>(`/profile/projects/${projectId}`, { method: 'DELETE' });
   }
+
+  // ==================== Language API ====================
+  async getLanguages(): Promise<ApiResponse<Language[]>> {
+    return this.request<Language[]>('/profile/languages');
+  }
+
+  async createLanguage(request: AddLanguageRequest): Promise<ApiResponse<Language>> {
+    return this.request<Language>('/profile/languages', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async updateLanguage(languageId: string, request: AddLanguageRequest): Promise<ApiResponse<Language>> {
+    return this.request<Language>(`/profile/languages/${languageId}`, {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async deleteLanguage(languageId: string): Promise<ApiResponse<void>> {
+    return this.request<void>(`/profile/languages/${languageId}`, { method: 'DELETE' });
+  }
+
+  // ==================== Certification API ====================
+  async getCertifications(): Promise<ApiResponse<Certification[]>> {
+    return this.request<Certification[]>('/profile/certifications');
+  }
+
+  async createCertification(request: AddCertificationRequest): Promise<ApiResponse<Certification>> {
+    return this.request<Certification>('/profile/certifications', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async updateCertification(certificationId: string, request: AddCertificationRequest): Promise<ApiResponse<Certification>> {
+    return this.request<Certification>(`/profile/certifications/${certificationId}`, {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async deleteCertification(certificationId: string): Promise<ApiResponse<void>> {
+    return this.request<void>(`/profile/certifications/${certificationId}`, { method: 'DELETE' });
+  }
 }
 
 export const api = new ApiClient();
@@ -671,10 +796,19 @@ export interface JobMatch {
   id: string;
   job: Job;
   matchScore: number;
-  matchReasons: string[];
+  matchDetails?: MatchDetails;  // 详细匹配信息
+  matchReasons?: string[];      // 兼容旧接口 (从 matchDetails.reasons 获取)
   status: 'NEW' | 'VIEWED' | 'SAVED' | 'APPLIED' | 'REJECTED';
   createdAt: string;
   isSaved?: boolean;
+}
+
+export interface MatchDetails {
+  reasons: string[];
+  matchingSkills: string[];
+  skillMatchPercentage?: number;
+  experienceMatchPercentage?: number;
+  locationMatchPercentage?: number;
 }
 
 export interface JobMatchSummary {
@@ -693,11 +827,112 @@ export interface Resume {
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
   isPrimary: boolean;
   skills: string[];
-  parsedData?: object;
+  parsedContent?: ParsedContent;
+  parsedData?: object;  // Backward compatibility
   createdAt: string;
   updatedAt: string;
   downloadUrl?: string;  // Presigned URL for download
   fileUrl?: string;      // Alias for downloadUrl (for backward compatibility)
+  errorMessage?: string;
+  notes?: string;
+}
+
+export interface ParsedContent {
+  personalInfo?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    location?: string;
+    linkedin?: string;
+    github?: string;
+    website?: string;
+  };
+  headline?: string;
+  summary?: string;
+  experiences?: ParsedExperience[];
+  education?: ParsedEducation[];
+  projects?: ParsedProject[];
+  skills?: ParsedSkill[];
+  certifications?: ParsedCertification[];
+  languages?: ParsedLanguage[];
+  achievements?: string[];
+}
+
+export interface ParsedExperience {
+  company?: string;
+  title?: string;
+  location?: string;
+  employmentType?: string;
+  startDate?: string;
+  endDate?: string;
+  isCurrent?: boolean;
+  description?: string;
+  achievements?: string[];
+  technologies?: string[];
+}
+
+export interface ParsedEducation {
+  school?: string;
+  degree?: string;
+  field?: string;
+  location?: string;
+  startDate?: string;
+  endDate?: string;
+  gpa?: string;
+  description?: string;
+  activities?: string[];
+  honors?: string[];
+}
+
+export interface ParsedProject {
+  name?: string;
+  description?: string;
+  url?: string;
+  repoUrl?: string;
+  technologies?: string[];
+  startDate?: string;
+  endDate?: string;
+  highlights?: string[];
+}
+
+export interface ParsedSkill {
+  name: string;
+  level?: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED' | 'EXPERT';
+  category?: string;
+}
+
+export interface ParsedCertification {
+  name?: string;
+  issuer?: string;
+  date?: string;
+  url?: string;
+}
+
+export interface ParsedLanguage {
+  language?: string;
+  proficiency?: string;
+}
+
+export interface SyncToProfileOptions {
+  syncBasicInfo?: boolean;
+  syncExperiences?: boolean;
+  syncEducations?: boolean;
+  syncSkills?: boolean;
+  syncProjects?: boolean;
+  syncLanguages?: boolean;
+  syncCertifications?: boolean;
+}
+
+export interface SyncToProfileResult {
+  success: boolean;
+  errorMessage?: string;
+  basicInfoSynced?: boolean;
+  experiencesSynced?: number;
+  educationsSynced?: number;
+  skillsSynced?: number;
+  projectsSynced?: number;
+  languagesSynced?: number;
+  certificationsSynced?: number;
 }
 
 export interface ResumeTemplate {
@@ -1115,6 +1350,7 @@ export interface NotificationItem {
   priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
   actionUrl?: string;
   actionText?: string;
+  dataJson?: string;  // 额外的 JSON 数据
   isRead: boolean;
   createdAt: string;
 }
@@ -1138,4 +1374,76 @@ export interface UpdateUserProfileRequest {
   headline?: string;
   summary?: string;
   location?: string;
+}
+
+// Language types
+export interface Language {
+  id: string;
+  language: string;
+  proficiency?: string;
+}
+
+export interface AddLanguageRequest {
+  language: string;
+  proficiency?: string;
+}
+
+// Certification types
+export interface Certification {
+  id: string;
+  name: string;
+  issuer?: string;
+  issueDate?: string;
+  expirationDate?: string;
+  credentialId?: string;
+  credentialUrl?: string;
+}
+
+export interface AddCertificationRequest {
+  name: string;
+  issuer?: string;
+  issueDate?: string;
+  expirationDate?: string;
+  credentialId?: string;
+  credentialUrl?: string;
+}
+
+// ==================== Profile Interview Types (Multi-Agent) ====================
+
+export interface StartProfileInterviewRequest {
+  language?: string;
+}
+
+export interface ProfileInterviewStartResponse {
+  success: boolean;
+  sessionId: string;
+  welcomeMessage: string;
+  firstQuestion: string;
+  currentPhase: string;
+}
+
+export interface ProfileInterviewMessageResponse {
+  response: string;
+  currentPhase: string;
+  phaseName: string;
+  isComplete: boolean;
+}
+
+export interface ProfileInterviewStateResponse {
+  success: boolean;
+  sessionId: string;
+  userId: string;
+  currentPhase: string;
+  phaseName: string;
+  turnCount: number;
+  status: string;
+  progress: string;
+}
+
+export interface ProfileInterviewFinishResponse {
+  success: boolean;
+  profileJson: string;
+  completenessScore: number;
+  missingSections: string[];
+  syncedToProfile: boolean;
 }

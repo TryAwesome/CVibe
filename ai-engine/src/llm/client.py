@@ -282,17 +282,32 @@ def get_default_vision_config() -> Optional[VisionConfig]:
         api_key = os.getenv("AI_LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
         if not api_key:
             return None
-        
+
         return VisionConfig(
             provider=os.getenv("AI_LLM_PROVIDER", "openai"),
             api_key=api_key,
             model=os.getenv("AI_LLM_MODEL", "gpt-4o"),
             base_url=os.getenv("AI_LLM_BASE_URL") or None,
         )
-    
+
     return VisionConfig(
         provider=os.getenv("AI_VISION_PROVIDER", "openai"),
         api_key=api_key,
         model=os.getenv("AI_VISION_MODEL", "gpt-4o"),
         base_url=os.getenv("AI_VISION_BASE_URL") or None,
+    )
+
+
+def get_reasoning_llm_config() -> Optional[LLMConfig]:
+    """从环境变量获取推理模型配置 (DeepSeek-R1 for resume parsing)"""
+    api_key = os.getenv("AI_REASONING_API_KEY")
+    if not api_key:
+        # Fallback to default LLM if reasoning model not configured
+        return get_default_llm_config()
+
+    return LLMConfig(
+        provider=os.getenv("AI_REASONING_PROVIDER", "custom"),
+        api_key=api_key,
+        model=os.getenv("AI_REASONING_MODEL", "deepseek-ai/DeepSeek-R1"),
+        base_url=os.getenv("AI_REASONING_BASE_URL") or None,
     )

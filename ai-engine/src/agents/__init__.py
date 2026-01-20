@@ -1,6 +1,6 @@
 """CVibe AI Agents"""
 
-from .interview import InterviewAgentWorkflow, InterviewContext, InterviewPhase
+from .interview import InterviewAgentWorkflow, InterviewContext, ProfileModule, ProfileInterviewAgent
 from .resumebuilder import ResumeBuilderAgentWorkflow, ResumeContent, ResumeSection, HiringCriteria
 from .mockinterview import MockInterviewAgentWorkflow, MockInterviewContext, MockInterviewType
 from .job import JobRecommenderAgentWorkflow, JobPosting, JobMatch
@@ -8,10 +8,11 @@ from .growth import GrowthAdvisorAgentWorkflow, SkillGap, LearningPath
 from .resume import ResumeParser, ParsedResume
 
 __all__ = [
-    # Interview
+    # Interview (v2)
     "InterviewAgentWorkflow",
-    "InterviewContext", 
-    "InterviewPhase",
+    "InterviewContext",
+    "ProfileModule",
+    "ProfileInterviewAgent",
     # Resume Builder
     "ResumeBuilderAgentWorkflow",
     "ResumeContent",

@@ -4,10 +4,12 @@ import com.cvibe.auth.entity.User;
 import com.cvibe.auth.repository.UserRepository;
 import com.cvibe.common.exception.BusinessException;
 import com.cvibe.common.exception.ErrorCode;
+import com.cvibe.common.grpc.AIEngineClient;
 import com.cvibe.interview.dto.*;
 import com.cvibe.interview.entity.*;
 import com.cvibe.interview.repository.InterviewSessionAnswerRepository;
 import com.cvibe.interview.repository.InterviewSessionRepository;
+import com.cvibe.profile.service.ProfileService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,6 +37,8 @@ public class InterviewService {
     private final InterviewSessionAnswerRepository answerRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final AIEngineClient aiEngineClient;
+    private final ProfileService profileService;
 
     // Mock questions for different focus areas
     private static final Map<FocusArea, List<MockQuestion>> MOCK_QUESTIONS = createMockQuestions();
@@ -265,6 +269,283 @@ public class InterviewService {
         sessionRepository.delete(session);
 
         log.info("Session {} deleted", sessionId);
+    }
+
+    // ==================== Profile Interview (AI-powered) ====================
+
+    /**
+     * Start a profile collection interview session via AI Engine
+     */
+    @Transactional
+    public ProfileInterviewStartResponse startProfileInterview(UUID userId, StartProfileInterviewRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        String sessionId = UUID.randomUUID().toString();
+        String language = request.getLanguage() != null ? request.getLanguage() : "zh";
+
+        // Get existing profile JSON if any
+        String existingProfile = null;
+        try {
+            var profile = profileService.getProfile(userId);
+            if (profile != null) {
+                existingProfile = objectMapper.writeValueAsString(profile);
+            }
+        } catch (Exception e) {
+            log.debug("No existing profile for user {}", userId);
+        }
+
+        // Call AI Engine
+        AIEngineClient.StartProfileInterviewResult result = aiEngineClient.startProfileInterview(
+                userId.toString(),
+                sessionId,
+                language,
+                existingProfile
+        );
+
+        if (!result.isSuccess()) {
+            throw new BusinessException(ErrorCode.AI_ENGINE_ERROR);
+        }
+
+        // Create session record in database
+        Instant now = Instant.now();
+        InterviewSession session = InterviewSession.builder()
+                .user(user)
+                .sessionType(SessionType.PROFILE_INTERVIEW)
+                .status(SessionStatus.IN_PROGRESS)
+                .focusArea(FocusArea.WORK_EXPERIENCE)
+                .language(language)
+                .currentQuestionIndex(0)
+                .totalQuestions(0)
+                .extractionStatus(ExtractionStatus.PENDING)
+                .startedAt(now)
+                .lastActivityAt(now)
+                .build();
+
+        // Store AI session ID in questions JSON field
+        session.setQuestionsJson(objectMapper.createObjectNode()
+                .put("aiSessionId", sessionId)
+                .put("currentPhase", result.getCurrentPhase())
+                .toString());
+
+        session = sessionRepository.save(session);
+        log.info("Created profile interview session {} for user {}", session.getId(), userId);
+
+        return ProfileInterviewStartResponse.builder()
+                .sessionId(session.getId().toString())
+                .aiSessionId(sessionId)
+                .welcomeMessage(result.getWelcomeMessage())
+                .firstQuestion(result.getFirstQuestion())
+                .currentPhase(result.getCurrentPhase())
+                .build();
+    }
+
+    /**
+     * Send a message in profile interview session
+     */
+    @Transactional
+    public ProfileInterviewMessageResponse sendProfileInterviewMessage(
+            UUID userId,
+            UUID sessionId,
+            ProfileInterviewMessageRequest request
+    ) {
+        InterviewSession session = sessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.SESSION_NOT_FOUND));
+
+        if (session.getStatus() != SessionStatus.IN_PROGRESS) {
+            throw new BusinessException(ErrorCode.SESSION_NOT_ACTIVE);
+        }
+
+        // Get AI session ID from stored data
+        String aiSessionId;
+        try {
+            var node = objectMapper.readTree(session.getQuestionsJson());
+            aiSessionId = node.has("aiSessionId") ? node.get("aiSessionId").asText() : sessionId.toString();
+        } catch (Exception e) {
+            aiSessionId = sessionId.toString();
+        }
+
+        // Collect response from AI Engine
+        StringBuilder responseBuilder = new StringBuilder();
+        final String[] currentPhase = {""};
+        final Throwable[] error = {null};
+
+        aiEngineClient.sendProfileInterviewMessage(
+                aiSessionId,
+                request.getMessage(),
+                chunk -> responseBuilder.append(chunk),
+                phase -> currentPhase[0] = phase,
+                () -> {},
+                err -> error[0] = err
+        );
+
+        // Check for errors
+        if (error[0] != null) {
+            log.error("AI Engine error: {}", error[0].getMessage());
+            throw new BusinessException(ErrorCode.AI_ENGINE_ERROR);
+        }
+
+        String response = responseBuilder.toString();
+        String phase = currentPhase[0];
+
+        // If response is empty, return a fallback message
+        if (response.isEmpty()) {
+            log.warn("Empty response from AI Engine for session {}", sessionId);
+            response = "抱歉，我需要一点时间来处理。请稍后再试，或者您可以继续描述您的背景。";
+        }
+
+        // Update session
+        session.setLastActivityAt(Instant.now());
+        session.setCurrentQuestionIndex(session.getCurrentQuestionIndex() + 1);
+
+        // Update phase in stored data
+        try {
+            var node = objectMapper.readTree(session.getQuestionsJson());
+            var updatedNode = objectMapper.createObjectNode();
+            node.fieldNames().forEachRemaining(f -> updatedNode.set(f, node.get(f)));
+            if (!phase.isEmpty()) {
+                updatedNode.put("currentPhase", phase);
+            }
+            session.setQuestionsJson(updatedNode.toString());
+        } catch (Exception e) {
+            log.warn("Failed to update phase", e);
+        }
+
+        // Save answer record
+        InterviewSessionAnswer answer = InterviewSessionAnswer.builder()
+                .session(session)
+                .questionId(UUID.randomUUID())
+                .question(request.getMessage())
+                .answer(response)
+                .category(phase.isEmpty() ? "GENERAL" : phase.toUpperCase())
+                .questionOrder(session.getCurrentQuestionIndex())
+                .build();
+        answerRepository.save(answer);
+
+        sessionRepository.save(session);
+
+        // Determine phase name based on phase code
+        String phaseName = getPhaseName(phase);
+
+        return ProfileInterviewMessageResponse.builder()
+                .response(response)
+                .currentPhase(phase)
+                .phaseName(phaseName)
+                .turnCount(session.getCurrentQuestionIndex())
+                .isComplete(false)
+                .build();
+    }
+
+    /**
+     * Convert phase code to human-readable phase name
+     */
+    private String getPhaseName(String phase) {
+        if (phase == null || phase.isEmpty()) {
+            return "对话中";
+        }
+        switch (phase.toLowerCase()) {
+            case "intro":
+                return "自我介绍";
+            case "work":
+            case "work_experience":
+                return "工作经历";
+            case "education":
+                return "教育背景";
+            case "skills":
+                return "技能特长";
+            case "projects":
+                return "项目经验";
+            case "goals":
+                return "职业目标";
+            case "summary":
+                return "总结";
+            default:
+                return "对话中";
+        }
+    }
+
+    /**
+     * Get profile interview state
+     */
+    @Transactional(readOnly = true)
+    public ProfileInterviewStateResponse getProfileInterviewState(UUID userId, UUID sessionId) {
+        InterviewSession session = sessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.SESSION_NOT_FOUND));
+
+        // Get AI session ID
+        String aiSessionId;
+        String currentPhase = "";
+        try {
+            var node = objectMapper.readTree(session.getQuestionsJson());
+            aiSessionId = node.has("aiSessionId") ? node.get("aiSessionId").asText() : sessionId.toString();
+            currentPhase = node.has("currentPhase") ? node.get("currentPhase").asText() : "";
+        } catch (Exception e) {
+            aiSessionId = sessionId.toString();
+        }
+
+        // Get state from AI Engine
+        var result = aiEngineClient.getProfileInterviewState(aiSessionId);
+
+        return ProfileInterviewStateResponse.builder()
+                .sessionId(sessionId.toString())
+                .currentPhase(result.isSuccess() ? result.getCurrentPhase() : currentPhase)
+                .phaseName(result.isSuccess() ? result.getPhaseName() : "")
+                .turnCount(session.getCurrentQuestionIndex())
+                .status(session.getStatus().name())
+                .portraitSummary(result.isSuccess() ? result.getPortraitSummary() : "")
+                .build();
+    }
+
+    /**
+     * Finish profile interview and sync to profile
+     */
+    @Transactional
+    public ProfileInterviewFinishResponse finishProfileInterview(UUID userId, UUID sessionId) {
+        InterviewSession session = sessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.SESSION_NOT_FOUND));
+
+        // Get AI session ID
+        String aiSessionId;
+        try {
+            var node = objectMapper.readTree(session.getQuestionsJson());
+            aiSessionId = node.has("aiSessionId") ? node.get("aiSessionId").asText() : sessionId.toString();
+        } catch (Exception e) {
+            aiSessionId = sessionId.toString();
+        }
+
+        // Finish interview and get extracted profile
+        var result = aiEngineClient.finishProfileInterview(aiSessionId);
+
+        if (!result.isSuccess()) {
+            log.error("Failed to finish profile interview: {}", result.getErrorMessage());
+            throw new BusinessException(ErrorCode.AI_ENGINE_ERROR);
+        }
+
+        // Parse and sync profile
+        try {
+            var extractedProfile = objectMapper.readValue(result.getProfileJson(), Map.class);
+            profileService.syncFromInterview(userId, extractedProfile);
+            log.info("Profile synced from interview for user {}", userId);
+        } catch (Exception e) {
+            log.error("Failed to sync profile from interview", e);
+            // Continue even if sync fails - we still want to complete the session
+        }
+
+        // Update session status
+        session.setStatus(SessionStatus.COMPLETED);
+        session.setCompletedAt(Instant.now());
+        session.setExtractionStatus(ExtractionStatus.COMPLETED);
+        session.setExtractedData(result.getProfileJson());
+        sessionRepository.save(session);
+
+        log.info("Profile interview {} completed with score {}", sessionId, result.getCompletenessScore());
+
+        return ProfileInterviewFinishResponse.builder()
+                .success(true)
+                .completenessScore(result.getCompletenessScore())
+                .missingSections(result.getMissingSections())
+                .message("Interview completed successfully. Profile has been updated.")
+                .build();
     }
 
     // ==================== Helper Methods ====================

@@ -56,6 +56,26 @@ class AIEngineStub(object):
                 request_serializer=ai__engine__pb2.SendMessageRequest.SerializeToString,
                 response_deserializer=ai__engine__pb2.MessageChunk.FromString,
                 _registered_method=True)
+        self.StartProfileInterview = channel.unary_unary(
+                '/cvibe.ai.AIEngine/StartProfileInterview',
+                request_serializer=ai__engine__pb2.StartProfileInterviewRequest.SerializeToString,
+                response_deserializer=ai__engine__pb2.ProfileInterviewResponse.FromString,
+                _registered_method=True)
+        self.SendProfileInterviewMessage = channel.unary_stream(
+                '/cvibe.ai.AIEngine/SendProfileInterviewMessage',
+                request_serializer=ai__engine__pb2.ProfileInterviewMessageRequest.SerializeToString,
+                response_deserializer=ai__engine__pb2.ProfileInterviewChunk.FromString,
+                _registered_method=True)
+        self.GetProfileInterviewState = channel.unary_unary(
+                '/cvibe.ai.AIEngine/GetProfileInterviewState',
+                request_serializer=ai__engine__pb2.GetProfileInterviewStateRequest.SerializeToString,
+                response_deserializer=ai__engine__pb2.ProfileInterviewStateResponse.FromString,
+                _registered_method=True)
+        self.FinishProfileInterview = channel.unary_unary(
+                '/cvibe.ai.AIEngine/FinishProfileInterview',
+                request_serializer=ai__engine__pb2.FinishProfileInterviewRequest.SerializeToString,
+                response_deserializer=ai__engine__pb2.CollectedProfileResponse.FromString,
+                _registered_method=True)
         self.StartMockInterview = channel.unary_unary(
                 '/cvibe.ai.AIEngine/StartMockInterview',
                 request_serializer=ai__engine__pb2.StartMockRequest.SerializeToString,
@@ -121,6 +141,34 @@ class AIEngineServicer(object):
 
     def SendInterviewMessage(self, request, context):
         """AI Interview - Send message and get streaming response
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def StartProfileInterview(self, request, context):
+        """Profile Interview - Start information collection interview
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SendProfileInterviewMessage(self, request, context):
+        """Profile Interview - Send message and get streaming response
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetProfileInterviewState(self, request, context):
+        """Profile Interview - Get current session state
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def FinishProfileInterview(self, request, context):
+        """Profile Interview - Finish and extract structured profile
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -197,6 +245,26 @@ def add_AIEngineServicer_to_server(servicer, server):
                     servicer.SendInterviewMessage,
                     request_deserializer=ai__engine__pb2.SendMessageRequest.FromString,
                     response_serializer=ai__engine__pb2.MessageChunk.SerializeToString,
+            ),
+            'StartProfileInterview': grpc.unary_unary_rpc_method_handler(
+                    servicer.StartProfileInterview,
+                    request_deserializer=ai__engine__pb2.StartProfileInterviewRequest.FromString,
+                    response_serializer=ai__engine__pb2.ProfileInterviewResponse.SerializeToString,
+            ),
+            'SendProfileInterviewMessage': grpc.unary_stream_rpc_method_handler(
+                    servicer.SendProfileInterviewMessage,
+                    request_deserializer=ai__engine__pb2.ProfileInterviewMessageRequest.FromString,
+                    response_serializer=ai__engine__pb2.ProfileInterviewChunk.SerializeToString,
+            ),
+            'GetProfileInterviewState': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetProfileInterviewState,
+                    request_deserializer=ai__engine__pb2.GetProfileInterviewStateRequest.FromString,
+                    response_serializer=ai__engine__pb2.ProfileInterviewStateResponse.SerializeToString,
+            ),
+            'FinishProfileInterview': grpc.unary_unary_rpc_method_handler(
+                    servicer.FinishProfileInterview,
+                    request_deserializer=ai__engine__pb2.FinishProfileInterviewRequest.FromString,
+                    response_serializer=ai__engine__pb2.CollectedProfileResponse.SerializeToString,
             ),
             'StartMockInterview': grpc.unary_unary_rpc_method_handler(
                     servicer.StartMockInterview,
@@ -344,6 +412,114 @@ class AIEngine(object):
             '/cvibe.ai.AIEngine/SendInterviewMessage',
             ai__engine__pb2.SendMessageRequest.SerializeToString,
             ai__engine__pb2.MessageChunk.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def StartProfileInterview(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/cvibe.ai.AIEngine/StartProfileInterview',
+            ai__engine__pb2.StartProfileInterviewRequest.SerializeToString,
+            ai__engine__pb2.ProfileInterviewResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SendProfileInterviewMessage(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/cvibe.ai.AIEngine/SendProfileInterviewMessage',
+            ai__engine__pb2.ProfileInterviewMessageRequest.SerializeToString,
+            ai__engine__pb2.ProfileInterviewChunk.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetProfileInterviewState(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/cvibe.ai.AIEngine/GetProfileInterviewState',
+            ai__engine__pb2.GetProfileInterviewStateRequest.SerializeToString,
+            ai__engine__pb2.ProfileInterviewStateResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def FinishProfileInterview(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/cvibe.ai.AIEngine/FinishProfileInterview',
+            ai__engine__pb2.FinishProfileInterviewRequest.SerializeToString,
+            ai__engine__pb2.CollectedProfileResponse.FromString,
             options,
             channel_credentials,
             insecure,

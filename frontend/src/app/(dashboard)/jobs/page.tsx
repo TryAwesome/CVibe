@@ -70,10 +70,19 @@ export default function JobsPage() {
         setMatches(matchesRes.data.content || []);
       }
       if (savedRes.success && savedRes.data) {
-        setSavedJobs(savedRes.data);
+        // Convert Job[] to JobMatch[] for consistent UI rendering
+        const savedJobMatches: JobMatch[] = (savedRes.data.content || []).map(job => ({
+          id: job.id,
+          job: job,
+          matchScore: 0,
+          status: 'SAVED' as const,
+          matchReasons: [],
+          createdAt: job.postedAt || new Date().toISOString(),
+        }));
+        setSavedJobs(savedJobMatches);
       }
       if (appliedRes.success && appliedRes.data) {
-        setAppliedJobs(appliedRes.data);
+        setAppliedJobs(appliedRes.data.content || []);
       }
       if (summaryRes.success && summaryRes.data) {
         setSummary(summaryRes.data);

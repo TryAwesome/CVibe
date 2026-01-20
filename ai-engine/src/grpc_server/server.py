@@ -10,6 +10,7 @@ from concurrent import futures
 from typing import Iterator, Optional
 import json
 import uuid
+import threading
 
 import grpc
 
@@ -24,14 +25,17 @@ except ImportError:
 
 from ..config import settings
 from ..llm import (
-    LLMClient, 
+    LLMClient,
     VisionClient,
     create_llm_client,
     create_vision_client,
     get_default_llm_config,
     get_default_vision_config,
+    get_reasoning_llm_config,
 )
 from ..agents.resume.parser import ResumeParser, ParsedResume
+from ..agents.interview.agent import ProfileInterviewAgent
+from ..agents.interview.orchestrator import ProfileInterviewOrchestrator
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -40,23 +44,31 @@ logger = logging.getLogger(__name__)
 # ================== Session Store ==================
 
 class SessionStore:
-    """简单的内存会话存储（生产环境应使用 Redis）"""
-    
+    """
+    线程安全的内存会话存储
+    生产环境应使用 Redis 实现
+    """
+
     def __init__(self):
         self._sessions: dict = {}
-    
+        self._lock = threading.RLock()  # 使用可重入锁保证线程安全
+
     def get(self, session_id: str) -> Optional[dict]:
-        return self._sessions.get(session_id)
-    
+        with self._lock:
+            return self._sessions.get(session_id)
+
     def set(self, session_id: str, data: dict):
-        self._sessions[session_id] = data
-    
+        with self._lock:
+            self._sessions[session_id] = data
+
     def delete(self, session_id: str):
-        self._sessions.pop(session_id, None)
-    
+        with self._lock:
+            self._sessions.pop(session_id, None)
+
     def update(self, session_id: str, **kwargs):
-        if session_id in self._sessions:
-            self._sessions[session_id].update(kwargs)
+        with self._lock:
+            if session_id in self._sessions:
+                self._sessions[session_id].update(kwargs)
 
 
 session_store = SessionStore()
@@ -68,18 +80,49 @@ class AIEngineServicer:
     """AI Engine gRPC 服务实现"""
 
     def __init__(self):
-        # 初始化默认 LLM 客户端
+        # 初始化默认 LLM 客户端 (DeepSeek-V3 for fast responses)
         self._default_llm: Optional[LLMClient] = None
+        # 初始化 Reasoning LLM 客户端 (DeepSeek-R1 for deep analysis like resume parsing)
+        self._reasoning_llm: Optional[LLMClient] = None
+        # 初始化视觉模型
         self._default_vision: Optional[VisionClient] = None
         self._init_default_clients()
-    
+
+        # 初始化 Profile Interview Agent (Legacy - for backwards compatibility)
+        self._profile_interview_agent: Optional[ProfileInterviewAgent] = None
+
+        # 初始化 Profile Interview Orchestrator (New Multi-Agent Architecture)
+        self._profile_interview_orchestrator: Optional[ProfileInterviewOrchestrator] = None
+
+        if self._default_llm:
+            # Legacy agent
+            self._profile_interview_agent = ProfileInterviewAgent(
+                llm_client=self._default_llm,
+                session_store=session_store
+            )
+
+            # New orchestrator (preferred)
+            self._profile_interview_orchestrator = ProfileInterviewOrchestrator(
+                llm_client=self._default_llm,
+                session_store=session_store
+            )
+            logger.info("Profile Interview Orchestrator (Multi-Agent) initialized")
+
     def _init_default_clients(self):
         """从环境变量初始化默认客户端"""
+        # Default LLM (fast model like DeepSeek-V3)
         llm_config = get_default_llm_config()
         if llm_config:
             self._default_llm = LLMClient(llm_config)
             logger.info(f"Default LLM initialized: {llm_config.provider}/{llm_config.model}")
-        
+
+        # Reasoning LLM (slow but deep model like DeepSeek-R1)
+        reasoning_config = get_reasoning_llm_config()
+        if reasoning_config:
+            self._reasoning_llm = LLMClient(reasoning_config)
+            logger.info(f"Reasoning LLM initialized: {reasoning_config.provider}/{reasoning_config.model}")
+
+        # Vision model
         vision_config = get_default_vision_config()
         if vision_config:
             self._default_vision = VisionClient(vision_config)
@@ -97,14 +140,17 @@ class AIEngineServicer:
         return self._default_llm
 
     # ================== Resume Parsing ==================
-    
+
     def ParseResume(self, request, context):
-        """解析简历文件"""
+        """解析简历文件 - 使用 Reasoning LLM (DeepSeek-R1) 提取详细结构化数据"""
         logger.info(f"ParseResume: file={request.file_name}, type={request.file_type}")
-        
+
         try:
+            # Use reasoning LLM for deep resume analysis, fallback to default LLM
+            llm_for_parsing = self._reasoning_llm or self._default_llm
+
             parser = ResumeParser(
-                llm_client=self._default_llm,
+                llm_client=llm_for_parsing,
                 vision_client=self._default_vision
             )
             
@@ -113,43 +159,108 @@ class AIEngineServicer:
             
             if "pdf" in file_type:
                 result = parser.parse_pdf_bytes(file_bytes)
-            elif "image" in file_type or file_type in ["jpg", "jpeg", "png"]:
+            elif "image" in file_type or file_type in ["jpg", "jpeg", "png", "webp"]:
                 result = parser.parse_image(file_bytes)
             else:
                 # 尝试作为文本处理
                 text = file_bytes.decode('utf-8', errors='ignore')
                 result = parser.parse_text(text)
             
-            # 构建响应
+            # 构建响应 - 包含所有增强字段
             resume_data = pb.ResumeData(
-                name=result.name,
-                email=result.email,
-                phone=result.phone,
-                summary=result.summary,
-                skills=result.skills,
-                raw_text=result.raw_text,
+                # 个人信息
+                name=result.name or "",
+                email=result.email or "",
+                phone=result.phone or "",
+                linkedin=result.linkedin or "",
+                github=result.github or "",
+                website=result.website or "",
+                location=result.location or "",
+                # 概要
+                headline=result.headline or "",
+                summary=result.summary or "",
+                # 原始文本
+                raw_text=result.raw_text or "",
+                # 成就
+                achievements=result.achievements or [],
             )
             
-            # 添加经历
+            # 添加技能 (新格式: list[dict] with name, level, category)
+            for skill in result.skills:
+                if isinstance(skill, dict):
+                    resume_data.skills.append(pb.SkillData(
+                        name=skill.get("name", ""),
+                        level=skill.get("level", "INTERMEDIATE"),
+                        category=skill.get("category", ""),
+                    ))
+                else:
+                    # 兼容旧格式 (字符串列表)
+                    resume_data.skills.append(pb.SkillData(
+                        name=str(skill),
+                        level="INTERMEDIATE",
+                        category="",
+                    ))
+            
+            # 添加工作经历 (增强版)
             for exp in result.work_experience:
                 resume_data.experiences.append(pb.ExperienceData(
                     company=exp.get("company", ""),
                     title=exp.get("title", ""),
+                    location=exp.get("location", ""),
+                    employment_type=exp.get("employment_type", "FULL_TIME"),
                     start_date=exp.get("start_date", ""),
                     end_date=exp.get("end_date", ""),
-                    description=exp.get("description", ""),
                     is_current=exp.get("is_current", False),
+                    description=exp.get("description", ""),
+                    achievements=exp.get("achievements", []),
+                    technologies=exp.get("technologies", []),
                 ))
             
-            # 添加教育
+            # 添加教育经历 (增强版)
             for edu in result.education:
                 resume_data.educations.append(pb.EducationData(
                     school=edu.get("school", ""),
                     degree=edu.get("degree", ""),
                     field=edu.get("field", ""),
+                    location=edu.get("location", ""),
                     start_date=edu.get("start_date", ""),
                     end_date=edu.get("end_date", ""),
+                    gpa=edu.get("gpa", ""),
+                    description=edu.get("description", ""),
+                    activities=edu.get("activities", []),
+                    honors=edu.get("honors", []),
                 ))
+            
+            # 添加项目经历
+            for proj in result.projects:
+                resume_data.projects.append(pb.ProjectData(
+                    name=proj.get("name", ""),
+                    description=proj.get("description", ""),
+                    url=proj.get("url", ""),
+                    repo_url=proj.get("repo_url", ""),
+                    technologies=proj.get("technologies", []),
+                    start_date=proj.get("start_date", ""),
+                    end_date=proj.get("end_date", ""),
+                    highlights=proj.get("highlights", []),
+                ))
+            
+            # 添加证书
+            for cert in result.certifications:
+                resume_data.certifications.append(pb.CertificationData(
+                    name=cert.get("name", ""),
+                    issuer=cert.get("issuer", ""),
+                    date=cert.get("date", ""),
+                    url=cert.get("url", ""),
+                ))
+            
+            # 添加语言能力
+            for lang in result.languages:
+                resume_data.languages.append(pb.LanguageData(
+                    language=lang.get("language", ""),
+                    proficiency=lang.get("proficiency", ""),
+                ))
+            
+            logger.info(f"ParseResume success: name={result.name}, skills={len(result.skills)}, exp={len(result.work_experience)}")
             
             return pb.ParseResumeResponse(
                 success=True,
@@ -157,7 +268,7 @@ class AIEngineServicer:
             )
             
         except Exception as e:
-            logger.error(f"ParseResume error: {e}")
+            logger.error(f"ParseResume error: {e}", exc_info=True)
             return pb.ParseResumeResponse(
                 success=False,
                 error_message=str(e),
@@ -762,6 +873,276 @@ class AIEngineServicer:
         except Exception as e:
             logger.error(f"AnalyzeJob error: {e}")
             return pb.JobAnalysisResponse()
+
+    # ================== Profile Interview (Information Collection) ==================
+
+    def StartProfileInterview(self, request, context):
+        """Start a profile collection interview session"""
+        logger.info(f"StartProfileInterview: session={request.session_id}, user={request.user_id}")
+
+        # Use new Orchestrator if available, fallback to legacy agent
+        if self._profile_interview_orchestrator:
+            try:
+                state, welcome, first_question = self._profile_interview_orchestrator.start_session(
+                    user_id=request.user_id,
+                    session_id=request.session_id,
+                    language=request.language or "zh",
+                    existing_profile=request.existing_profile if request.existing_profile else None
+                )
+
+                return pb.ProfileInterviewResponse(
+                    success=True,
+                    welcome_message=welcome,
+                    first_question=first_question,
+                    current_phase=state.current_module.value
+                )
+            except Exception as e:
+                logger.error(f"StartProfileInterview (Orchestrator) error: {e}", exc_info=True)
+                return pb.ProfileInterviewResponse(
+                    success=False,
+                    welcome_message="",
+                    first_question=str(e),
+                    current_phase=""
+                )
+
+        # Fallback to legacy agent
+        if not self._profile_interview_agent:
+            return pb.ProfileInterviewResponse(
+                success=False,
+                welcome_message="",
+                first_question="Profile Interview Agent not initialized",
+                current_phase=""
+            )
+
+        try:
+            state, welcome, first_question = self._profile_interview_agent.start_session(
+                user_id=request.user_id,
+                session_id=request.session_id,
+                language=request.language or "zh",
+                existing_profile=request.existing_profile if request.existing_profile else None
+            )
+
+            return pb.ProfileInterviewResponse(
+                success=True,
+                welcome_message=welcome,
+                first_question=first_question,
+                current_phase=state.current_module.value  # v2: current_module
+            )
+        except Exception as e:
+            logger.error(f"StartProfileInterview error: {e}", exc_info=True)
+            return pb.ProfileInterviewResponse(
+                success=False,
+                welcome_message="",
+                first_question=str(e),
+                current_phase=""
+            )
+
+    def SendProfileInterviewMessage(self, request, context) -> Iterator:
+        """Send a message in profile interview session (streaming response)"""
+        logger.info(f"SendProfileInterviewMessage: session={request.session_id}")
+
+        # Use new Orchestrator if available
+        if self._profile_interview_orchestrator:
+            try:
+                for chunk in self._profile_interview_orchestrator.process_message(
+                    session_id=request.session_id,
+                    user_message=request.user_message
+                ):
+                    yield pb.ProfileInterviewChunk(
+                        content=chunk,
+                        is_final=False,
+                        phase=""
+                    )
+
+                # Get current state to include phase info
+                state_info = self._profile_interview_orchestrator.get_session_state(request.session_id)
+                current_module = state_info.get("current_module", "") if state_info else ""
+
+                yield pb.ProfileInterviewChunk(
+                    content="",
+                    is_final=True,
+                    phase=current_module
+                )
+                return
+            except Exception as e:
+                logger.error(f"SendProfileInterviewMessage (Orchestrator) error: {e}", exc_info=True)
+                yield pb.ProfileInterviewChunk(
+                    content=str(e),
+                    is_final=True,
+                    phase=""
+                )
+                return
+
+        # Fallback to legacy agent
+        if not self._profile_interview_agent:
+            yield pb.ProfileInterviewChunk(
+                content="Profile Interview Agent not initialized",
+                is_final=True,
+                phase=""
+            )
+            return
+
+        try:
+            for chunk in self._profile_interview_agent.process_message(
+                session_id=request.session_id,
+                user_message=request.user_message
+            ):
+                yield pb.ProfileInterviewChunk(
+                    content=chunk,
+                    is_final=False,
+                    phase=""
+                )
+
+            # Get current state to include phase info
+            state_info = self._profile_interview_agent.get_session_state(request.session_id)
+            current_module = state_info.get("current_module", "") if state_info else ""
+
+            yield pb.ProfileInterviewChunk(
+                content="",
+                is_final=True,
+                phase=current_module  # v2: use current_module as phase
+            )
+        except Exception as e:
+            logger.error(f"SendProfileInterviewMessage error: {e}", exc_info=True)
+            yield pb.ProfileInterviewChunk(
+                content=str(e),
+                is_final=True,
+                phase=""
+            )
+
+    def GetProfileInterviewState(self, request, context):
+        """Get current state of a profile interview session"""
+        logger.info(f"GetProfileInterviewState: session={request.session_id}")
+
+        # Use new Orchestrator if available
+        if self._profile_interview_orchestrator:
+            try:
+                state_info = self._profile_interview_orchestrator.get_session_state(request.session_id)
+
+                if not state_info:
+                    return pb.ProfileInterviewStateResponse(
+                        success=False,
+                        session_id=request.session_id
+                    )
+
+                return pb.ProfileInterviewStateResponse(
+                    success=True,
+                    session_id=state_info.get("session_id", ""),
+                    user_id=state_info.get("user_id", ""),
+                    current_phase=state_info.get("current_module", ""),
+                    phase_name=state_info.get("module_name", ""),
+                    turn_count=state_info.get("turn_count", 0),
+                    status=state_info.get("status", ""),
+                    portrait_summary=state_info.get("progress", "")
+                )
+            except Exception as e:
+                logger.error(f"GetProfileInterviewState (Orchestrator) error: {e}", exc_info=True)
+                return pb.ProfileInterviewStateResponse(
+                    success=False,
+                    session_id=request.session_id
+                )
+
+        # Fallback to legacy agent
+        if not self._profile_interview_agent:
+            return pb.ProfileInterviewStateResponse(
+                success=False,
+                session_id=request.session_id
+            )
+
+        try:
+            state_info = self._profile_interview_agent.get_session_state(request.session_id)
+
+            if not state_info:
+                return pb.ProfileInterviewStateResponse(
+                    success=False,
+                    session_id=request.session_id
+                )
+
+            return pb.ProfileInterviewStateResponse(
+                success=True,
+                session_id=state_info.get("session_id", ""),
+                user_id=state_info.get("user_id", ""),
+                current_phase=state_info.get("current_module", ""),  # v2: current_module
+                phase_name=state_info.get("module_name", ""),  # v2: module_name
+                turn_count=state_info.get("turn_count", 0),
+                status=state_info.get("status", ""),
+                portrait_summary=state_info.get("progress", "")  # v2: progress instead of portrait_summary
+            )
+        except Exception as e:
+            logger.error(f"GetProfileInterviewState error: {e}", exc_info=True)
+            return pb.ProfileInterviewStateResponse(
+                success=False,
+                session_id=request.session_id
+            )
+
+    def FinishProfileInterview(self, request, context):
+        """Finish profile interview and extract structured profile"""
+        logger.info(f"FinishProfileInterview: session={request.session_id}")
+
+        # Use new Orchestrator if available
+        if self._profile_interview_orchestrator:
+            try:
+                result = self._profile_interview_orchestrator.finish_session(request.session_id)
+
+                if result.get("success"):
+                    return pb.CollectedProfileResponse(
+                        success=True,
+                        profile_json=json.dumps(result["profile"], ensure_ascii=False),
+                        completeness_score=result.get("completeness_score", 0),
+                        missing_sections=result.get("missing_sections", []),
+                        error_message=""
+                    )
+                else:
+                    return pb.CollectedProfileResponse(
+                        success=False,
+                        profile_json="{}",
+                        completeness_score=0,
+                        error_message=result.get("error", "Unknown error")
+                    )
+            except Exception as e:
+                logger.error(f"FinishProfileInterview (Orchestrator) error: {e}", exc_info=True)
+                return pb.CollectedProfileResponse(
+                    success=False,
+                    profile_json="{}",
+                    completeness_score=0,
+                    error_message=str(e)
+                )
+
+        # Fallback to legacy agent
+        if not self._profile_interview_agent:
+            return pb.CollectedProfileResponse(
+                success=False,
+                profile_json="{}",
+                completeness_score=0,
+                error_message="Profile Interview Agent not initialized"
+            )
+
+        try:
+            result = self._profile_interview_agent.finish_session(request.session_id)
+
+            if result.get("success"):
+                return pb.CollectedProfileResponse(
+                    success=True,
+                    profile_json=json.dumps(result["profile"], ensure_ascii=False),
+                    completeness_score=result.get("completeness_score", 0),
+                    missing_sections=result.get("missing_sections", []),
+                    error_message=""
+                )
+            else:
+                return pb.CollectedProfileResponse(
+                    success=False,
+                    profile_json="{}",
+                    completeness_score=0,
+                    error_message=result.get("error", "Unknown error")
+                )
+        except Exception as e:
+            logger.error(f"FinishProfileInterview error: {e}", exc_info=True)
+            return pb.CollectedProfileResponse(
+                success=False,
+                profile_json="{}",
+                completeness_score=0,
+                error_message=str(e)
+            )
 
 
 # ================== Server Entry Point ==================

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, CheckCircle2, Circle, ArrowRight, BookOpen, Code, Upload, AlertCircle, Target, TrendingUp, Trash2 } from "lucide-react";
+import { Loader2, CheckCircle2, Circle, ArrowRight, BookOpen, Code, Upload, AlertCircle, Target, TrendingUp, Trash2, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api, GrowthGoal, GapAnalysis, LearningPath, GrowthSummary, SkillGap, Milestone } from "@/lib/api";
 import { useAuth } from "@/lib/contexts/auth-context";
@@ -29,6 +29,14 @@ export default function GrowthPage() {
   // Form state
   const [company, setCompany] = useState("");
   const [position, setPosition] = useState("");
+  const [showGoalModal, setShowGoalModal] = useState(false);
+
+  // Auto-show modal when no goals exist
+  useEffect(() => {
+    if (!isLoading && goals.length === 0) {
+      setShowGoalModal(true);
+    }
+  }, [isLoading, goals.length]);
 
   // Fetch data on mount
   useEffect(() => {
@@ -78,7 +86,7 @@ export default function GrowthPage() {
       if (gapsRes.success && gapsRes.data) {
         setGapAnalysis({
           score: goal.progress,
-          gaps: gapsRes.data,
+          gaps: Array.isArray(gapsRes.data) ? gapsRes.data : [],
           strengths: [],
         });
       }
@@ -120,9 +128,10 @@ export default function GrowthPage() {
           setLearningPaths(pathsRes.data);
         }
 
-        // Clear form
+        // Clear form and close modal
         setCompany("");
         setPosition("");
+        setShowGoalModal(false);
         
         // Refresh summary
         const summaryRes = await api.getGrowthSummary();
@@ -163,7 +172,7 @@ export default function GrowthPage() {
         // Update local state
         setLearningPaths(prev => prev.map(path => ({
           ...path,
-          milestones: path.milestones.map(m => 
+          milestones: (path.milestones || []).map(m =>
             m.id === milestoneId ? { ...m, isCompleted: true } : m
           )
         })));
@@ -184,7 +193,7 @@ export default function GrowthPage() {
       if (res.success) {
         setLearningPaths(prev => prev.map(path => ({
           ...path,
-          milestones: path.milestones.map(m => 
+          milestones: (path.milestones || []).map(m =>
             m.id === milestoneId ? { ...m, isCompleted: false } : m
           )
         })));
@@ -229,106 +238,97 @@ export default function GrowthPage() {
         </div>
       )}
 
-      {/* Existing Goals */}
-      {goals.length > 0 && (
-        <Card className="border-0 shadow-md bg-card/50">
-          <CardHeader>
-            <CardTitle>Your Goals</CardTitle>
-            <CardDescription>Select a goal to view your learning path</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-3">
-            {goals.map(goal => (
-              <div 
-                key={goal.id}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-all",
-                  selectedGoal?.id === goal.id 
-                    ? "bg-primary text-primary-foreground" 
-                    : "bg-muted hover:bg-muted/80"
-                )}
-                onClick={() => selectGoal(goal)}
+      {/* Add New Goal Button */}
+      <Button
+        onClick={() => setShowGoalModal(true)}
+        className="fixed bottom-8 right-8 h-14 w-14 rounded-full shadow-lg z-40"
+        size="icon"
+      >
+        <Plus className="h-6 w-6" />
+      </Button>
+
+      {/* Floating Goal Modal */}
+      {showGoalModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-background/60 backdrop-blur-sm"
+            onClick={() => setShowGoalModal(false)}
+          />
+
+          {/* Modal Content */}
+          <Card className="relative z-10 w-full max-w-lg mx-4 border shadow-2xl bg-card/95 backdrop-blur-md animate-in zoom-in-95 duration-200">
+            <CardHeader className="relative">
+              <button
+                onClick={() => setShowGoalModal(false)}
+                className="absolute right-4 top-4 p-1 rounded-full hover:bg-muted transition-colors"
               >
-                <Target className="h-4 w-4" />
-                <span className="font-medium">{goal.targetCompany}</span>
-                <span className="text-sm opacity-80">• {goal.targetPosition}</span>
-                {goal.isPrimary && <Badge variant="secondary" className="text-[10px]">Primary</Badge>}
-                <button
-                  className="ml-2 hover:text-destructive"
-                  onClick={(e) => { e.stopPropagation(); handleDeleteGoal(goal.id); }}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+              <CardTitle>Set a New Goal</CardTitle>
+              <CardDescription>Where do you want to be in 3 months?</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="manual" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-4">
+                  <TabsTrigger value="manual">Manual Input</TabsTrigger>
+                  <TabsTrigger value="image">Upload Job Description</TabsTrigger>
+                </TabsList>
 
-      {/* Create New Goal */}
-      <Card className="border-0 shadow-lg bg-card/50 backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle>Set a New Goal</CardTitle>
-          <CardDescription>Where do you want to be in 3 months?</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="manual" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="manual">Manual Input</TabsTrigger>
-              <TabsTrigger value="image">Upload Job Description</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="manual" className="space-y-4">
-              <div className="grid gap-6 md:grid-cols-2">
-                            <div className="space-y-2">
-                                <Label>Target Company</Label>
-                                <Input 
-                                    placeholder="e.g. Netflix" 
-                                    value={company}
-                                    onChange={(e) => setCompany(e.target.value)}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Target Position</Label>
-                                <Input 
-                                    placeholder="e.g. Senior Backend Engineer" 
-                                    value={position}
-                                    onChange={(e) => setPosition(e.target.value)}
-                                />
-                            </div>
-                        </div>
-                        <Button 
-                            onClick={handleCreateGoal} 
-                            disabled={analyzing || !company || !position}
-                            className="w-full mt-4"
-                        >
-                            {analyzing ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing...
-                                </>
-                            ) : (
-                                "Create Goal & Analyze"
-                            )}
-                        </Button>
-                    </TabsContent>
+                <TabsContent value="manual" className="space-y-4">
+                  <div className="grid gap-4">
+                    <div className="space-y-2">
+                      <Label>Target Company</Label>
+                      <Input
+                        placeholder="e.g. Netflix"
+                        value={company}
+                        onChange={(e) => setCompany(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Target Position</Label>
+                      <Input
+                        placeholder="e.g. Senior Backend Engineer"
+                        value={position}
+                        onChange={(e) => setPosition(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleCreateGoal}
+                    disabled={analyzing || !company || !position}
+                    className="w-full mt-4"
+                  >
+                    {analyzing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing...
+                      </>
+                    ) : (
+                      "Create Goal & Analyze"
+                    )}
+                  </Button>
+                </TabsContent>
 
-                    <TabsContent value="image">
-                        <div className="border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center text-center hover:bg-accent/50 transition-colors cursor-pointer group">
-                            <div className="bg-primary/10 p-4 rounded-full mb-4 group-hover:scale-110 transition-transform">
-                                <Upload className="h-8 w-8 text-primary" />
-                            </div>
-                            <h3 className="text-lg font-semibold">Upload Job Screenshot</h3>
-                            <p className="text-sm text-muted-foreground mt-2 max-w-xs">
-                                Drag and drop a screenshot of the job description here, or click to browse.
-                            </p>
-                            <Input type="file" className="hidden" />
-                            <Button variant="outline" className="mt-6">
-                                Select Image File
-                            </Button>
-                        </div>
-                    </TabsContent>
-                </Tabs>
+                <TabsContent value="image">
+                  <div className="border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center hover:bg-accent/50 transition-colors cursor-pointer group">
+                    <div className="bg-primary/10 p-4 rounded-full mb-4 group-hover:scale-110 transition-transform">
+                      <Upload className="h-8 w-8 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-semibold">Upload Job Screenshot</h3>
+                    <p className="text-sm text-muted-foreground mt-2 max-w-xs">
+                      Drag and drop a screenshot of the job description here, or click to browse.
+                    </p>
+                    <Input type="file" className="hidden" />
+                    <Button variant="outline" className="mt-6">
+                      Select Image File
+                    </Button>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </CardContent>
-        </Card>
+          </Card>
+        </div>
+      )}
 
         {/* Results Section */}
         {selectedGoal && gapAnalysis && (
@@ -354,20 +354,20 @@ export default function GrowthPage() {
                         </CardHeader>
                         <CardContent>
                             <div className="flex flex-wrap gap-3">
-                                {gapAnalysis.gaps.map((gap) => (
+                                {(gapAnalysis.gaps || []).map((gap) => (
                                     <Badge key={gap.id} variant="destructive" className="text-sm px-3 py-1">
                                         {gap.skill} (Level {gap.currentLevel} → {gap.requiredLevel})
                                     </Badge>
                                 ))}
-                                {gapAnalysis.gaps.length === 0 && (
+                                {(!gapAnalysis.gaps || gapAnalysis.gaps.length === 0) && (
                                     <p className="text-muted-foreground">No gaps identified yet. Generate a learning path to analyze.</p>
                                 )}
                             </div>
-                            {gapAnalysis.strengths.length > 0 && (
+                            {(gapAnalysis.strengths || []).length > 0 && (
                                 <div className="mt-4">
                                     <p className="text-xs font-semibold text-muted-foreground mb-2">Your Strengths</p>
                                     <div className="flex flex-wrap gap-2">
-                                        {gapAnalysis.strengths.map((s, i) => (
+                                        {(gapAnalysis.strengths || []).map((s, i) => (
                                             <Badge key={i} variant="outline" className="bg-green-500/10 text-green-600">
                                                 {s}
                                             </Badge>
@@ -393,7 +393,7 @@ export default function GrowthPage() {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="relative border-l-2 border-muted ml-4 space-y-6 pl-8 py-2">
-                                        {path.milestones.sort((a, b) => a.order - b.order).map((milestone, index) => (
+                                        {(path.milestones || []).sort((a, b) => a.order - b.order).map((milestone, index) => (
                                             <div key={milestone.id} className="relative">
                                                 {/* Timeline Dot */}
                                                 <span 
@@ -439,9 +439,9 @@ export default function GrowthPage() {
                                                             </div>
                                                         )}
                                                     </div>
-                                                    {milestone.resources.length > 0 && (
+                                                    {(milestone.resources || []).length > 0 && (
                                                         <div className="mt-3 flex flex-wrap gap-2">
-                                                            {milestone.resources.map((res, i) => (
+                                                            {(milestone.resources || []).map((res, i) => (
                                                                 <Badge key={i} variant="outline" className="bg-background text-xs">
                                                                     {res}
                                                                 </Badge>

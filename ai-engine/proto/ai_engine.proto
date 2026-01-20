@@ -15,39 +15,51 @@ option java_multiple_files = true;
 service AIEngine {
   // Resume Parsing - Extract structured data from resume files
   rpc ParseResume(ParseResumeRequest) returns (ParseResumeResponse);
-  
+
   // Resume Building - AI-powered resume generation
   rpc BuildResume(BuildResumeRequest) returns (stream BuildResumeChunk);
-  
+
   // AI Interview - Start a new interview session
   rpc StartInterview(StartInterviewRequest) returns (StartInterviewResponse);
-  
+
   // AI Interview - Send message and get streaming response
   rpc SendInterviewMessage(SendMessageRequest) returns (stream MessageChunk);
-  
+
+  // Profile Interview - Start information collection interview
+  rpc StartProfileInterview(StartProfileInterviewRequest) returns (ProfileInterviewResponse);
+
+  // Profile Interview - Send message and get streaming response
+  rpc SendProfileInterviewMessage(ProfileInterviewMessageRequest) returns (stream ProfileInterviewChunk);
+
+  // Profile Interview - Get current session state
+  rpc GetProfileInterviewState(GetProfileInterviewStateRequest) returns (ProfileInterviewStateResponse);
+
+  // Profile Interview - Finish and extract structured profile
+  rpc FinishProfileInterview(FinishProfileInterviewRequest) returns (CollectedProfileResponse);
+
   // Mock Interview - Start practice session
   rpc StartMockInterview(StartMockRequest) returns (StartMockResponse);
-  
+
   // Mock Interview - Get next question
   rpc GetNextQuestion(GetQuestionRequest) returns (QuestionResponse);
-  
+
   // Mock Interview - Evaluate user's answer
   rpc EvaluateAnswer(EvaluateAnswerRequest) returns (EvaluationResponse);
-  
+
   // Mock Interview - Finish and get report
   rpc FinishMockInterview(FinishMockRequest) returns (MockReportResponse);
-  
+
   // Growth - Analyze skill gaps
   rpc AnalyzeGap(GapAnalysisRequest) returns (GapAnalysisResponse);
-  
+
   // Growth - Generate learning path
   rpc GenerateLearningPath(LearningPathRequest) returns (stream LearningPathChunk);
-  
+
   // Job - Analyze job posting
   rpc AnalyzeJob(AnalyzeJobRequest) returns (JobAnalysisResponse);
 }
 
-// ==================== Resume Parsing ====================
+// ==================== Resume Parsing (Enhanced) ====================
 
 message ParseResumeRequest {
   bytes file_content = 1;       // Binary file content
@@ -62,31 +74,89 @@ message ParseResumeResponse {
 }
 
 message ResumeData {
+  // Personal Info
   string name = 1;
   string email = 2;
   string phone = 3;
-  string summary = 4;
-  repeated ExperienceData experiences = 5;
-  repeated EducationData educations = 6;
-  repeated string skills = 7;
-  string raw_text = 8;          // Full extracted text
+  string linkedin = 4;          // LinkedIn profile URL
+  string github = 5;            // GitHub profile URL
+  string website = 6;           // Personal website
+  string location = 7;          // Location/address
+  
+  // Summary
+  string headline = 8;          // Professional headline/title
+  string summary = 9;           // Personal summary/objective
+  
+  // Experience, Education, Projects
+  repeated ExperienceData experiences = 10;
+  repeated EducationData educations = 11;
+  repeated ProjectData projects = 12;
+  
+  // Skills with levels
+  repeated SkillData skills = 13;
+  
+  // Additional info
+  repeated CertificationData certifications = 14;
+  repeated string achievements = 15;      // Awards, honors
+  repeated LanguageData languages = 16;   // Language proficiency
+  
+  // Raw text
+  string raw_text = 17;         // Full extracted text
 }
 
 message ExperienceData {
   string company = 1;
   string title = 2;
-  string start_date = 3;        // ISO format: YYYY-MM
-  string end_date = 4;          // ISO format or "present"
-  string description = 5;
-  bool is_current = 6;
+  string location = 3;
+  string employment_type = 4;   // FULL_TIME, PART_TIME, CONTRACT, INTERNSHIP, FREELANCE
+  string start_date = 5;        // ISO format: YYYY-MM
+  string end_date = 6;          // ISO format or "present"
+  bool is_current = 7;
+  string description = 8;
+  repeated string achievements = 9;   // Key achievements (quantified if possible)
+  repeated string technologies = 10;  // Technologies used
 }
 
 message EducationData {
   string school = 1;
   string degree = 2;
-  string field = 3;
-  string start_date = 4;
-  string end_date = 5;
+  string field = 3;             // Field of study / Major
+  string location = 4;
+  string start_date = 5;
+  string end_date = 6;
+  string gpa = 7;               // GPA if available
+  string description = 8;
+  repeated string activities = 9;     // Extracurricular activities
+  repeated string honors = 10;        // Academic honors
+}
+
+message ProjectData {
+  string name = 1;
+  string description = 2;
+  string url = 3;               // Project demo URL
+  string repo_url = 4;          // Repository URL (GitHub, etc.)
+  repeated string technologies = 5;
+  string start_date = 6;
+  string end_date = 7;
+  repeated string highlights = 8;     // Key features/achievements
+}
+
+message SkillData {
+  string name = 1;
+  string level = 2;             // BEGINNER, INTERMEDIATE, ADVANCED, EXPERT
+  string category = 3;          // Programming Language, Framework, Tool, etc.
+}
+
+message CertificationData {
+  string name = 1;
+  string issuer = 2;
+  string date = 3;              // Date obtained
+  string url = 4;               // Verification URL
+}
+
+message LanguageData {
+  string language = 1;
+  string proficiency = 2;       // Native, Fluent, Professional, Basic
 }
 
 // ==================== Resume Building ====================
@@ -269,4 +339,58 @@ message JobAnalysisResponse {
   string experience_level = 3;
   string salary_estimate = 4;
   repeated string interview_tips = 5;
+}
+
+// ==================== Profile Interview (Information Collection) ====================
+
+message StartProfileInterviewRequest {
+  string user_id = 1;
+  string session_id = 2;
+  string language = 3;           // "zh" or "en"
+  string existing_profile = 4;   // Existing profile JSON (optional, for supplementing)
+}
+
+message ProfileInterviewResponse {
+  bool success = 1;
+  string welcome_message = 2;
+  string first_question = 3;
+  string current_phase = 4;
+}
+
+message ProfileInterviewMessageRequest {
+  string session_id = 1;
+  string user_message = 2;
+}
+
+message ProfileInterviewChunk {
+  string content = 1;            // Streamed content
+  bool is_final = 2;
+  string phase = 3;              // Current phase
+}
+
+message GetProfileInterviewStateRequest {
+  string session_id = 1;
+}
+
+message ProfileInterviewStateResponse {
+  bool success = 1;
+  string session_id = 2;
+  string user_id = 3;
+  string current_phase = 4;
+  string phase_name = 5;
+  int32 turn_count = 6;
+  string status = 7;             // IN_PROGRESS, PAUSED, COMPLETED
+  string portrait_summary = 8;   // Summary of collected info
+}
+
+message FinishProfileInterviewRequest {
+  string session_id = 1;
+}
+
+message CollectedProfileResponse {
+  bool success = 1;
+  string profile_json = 2;       // Complete Profile JSON
+  int32 completeness_score = 3;  // Completeness score 0-100
+  repeated string missing_sections = 4;  // Missing sections
+  string error_message = 5;      // Error message if failed
 }

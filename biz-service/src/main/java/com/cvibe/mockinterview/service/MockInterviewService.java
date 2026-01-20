@@ -312,26 +312,28 @@ public class MockInterviewService {
         long inProgress = sessionRepository.countByUserIdAndStatus(userId, MockInterviewStatus.IN_PROGRESS);
         Double avgScore = sessionRepository.getAverageScoreByUserId(userId);
 
-        // Get type stats
-        long videoCount = sessionRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+        // 只获取一次数据，避免 N+1 查询问题
+        List<MockInterviewSession> sessions = sessionRepository.findByUserIdOrderByCreatedAtDesc(userId);
+
+        // 计算类型统计 (使用单次获取的数据)
+        long videoCount = sessions.stream()
                 .filter(s -> s.getType() == MockInterviewType.VIDEO)
                 .count();
-        long audioCount = sessionRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+        long audioCount = sessions.stream()
                 .filter(s -> s.getType() == MockInterviewType.AUDIO)
                 .count();
-        long textCount = sessionRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+        long textCount = sessions.stream()
                 .filter(s -> s.getType() == MockInterviewType.TEXT)
                 .count();
 
-        // Get best score and last interview date
-        List<MockInterviewSession> sessions = sessionRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        // Get best score and last interview date (使用相同的数据)
         Integer bestScore = sessions.stream()
                 .filter(s -> s.getOverallScore() != null)
                 .map(MockInterviewSession::getOverallScore)
                 .max(Integer::compareTo)
                 .orElse(null);
 
-        String lastInterviewDate = sessions.isEmpty() ? null : 
+        String lastInterviewDate = sessions.isEmpty() ? null :
                 sessions.get(0).getCreatedAt().toString();
 
         return MockInterviewSummaryDto.builder()

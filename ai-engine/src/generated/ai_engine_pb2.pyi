@@ -27,54 +27,140 @@ class ParseResumeResponse(_message.Message):
     def __init__(self, success: bool = ..., data: _Optional[_Union[ResumeData, _Mapping]] = ..., error_message: _Optional[str] = ...) -> None: ...
 
 class ResumeData(_message.Message):
-    __slots__ = ("name", "email", "phone", "summary", "experiences", "educations", "skills", "raw_text")
+    __slots__ = ("name", "email", "phone", "linkedin", "github", "website", "location", "headline", "summary", "experiences", "educations", "projects", "skills", "certifications", "achievements", "languages", "raw_text")
     NAME_FIELD_NUMBER: _ClassVar[int]
     EMAIL_FIELD_NUMBER: _ClassVar[int]
     PHONE_FIELD_NUMBER: _ClassVar[int]
+    LINKEDIN_FIELD_NUMBER: _ClassVar[int]
+    GITHUB_FIELD_NUMBER: _ClassVar[int]
+    WEBSITE_FIELD_NUMBER: _ClassVar[int]
+    LOCATION_FIELD_NUMBER: _ClassVar[int]
+    HEADLINE_FIELD_NUMBER: _ClassVar[int]
     SUMMARY_FIELD_NUMBER: _ClassVar[int]
     EXPERIENCES_FIELD_NUMBER: _ClassVar[int]
     EDUCATIONS_FIELD_NUMBER: _ClassVar[int]
+    PROJECTS_FIELD_NUMBER: _ClassVar[int]
     SKILLS_FIELD_NUMBER: _ClassVar[int]
+    CERTIFICATIONS_FIELD_NUMBER: _ClassVar[int]
+    ACHIEVEMENTS_FIELD_NUMBER: _ClassVar[int]
+    LANGUAGES_FIELD_NUMBER: _ClassVar[int]
     RAW_TEXT_FIELD_NUMBER: _ClassVar[int]
     name: str
     email: str
     phone: str
+    linkedin: str
+    github: str
+    website: str
+    location: str
+    headline: str
     summary: str
     experiences: _containers.RepeatedCompositeFieldContainer[ExperienceData]
     educations: _containers.RepeatedCompositeFieldContainer[EducationData]
-    skills: _containers.RepeatedScalarFieldContainer[str]
+    projects: _containers.RepeatedCompositeFieldContainer[ProjectData]
+    skills: _containers.RepeatedCompositeFieldContainer[SkillData]
+    certifications: _containers.RepeatedCompositeFieldContainer[CertificationData]
+    achievements: _containers.RepeatedScalarFieldContainer[str]
+    languages: _containers.RepeatedCompositeFieldContainer[LanguageData]
     raw_text: str
-    def __init__(self, name: _Optional[str] = ..., email: _Optional[str] = ..., phone: _Optional[str] = ..., summary: _Optional[str] = ..., experiences: _Optional[_Iterable[_Union[ExperienceData, _Mapping]]] = ..., educations: _Optional[_Iterable[_Union[EducationData, _Mapping]]] = ..., skills: _Optional[_Iterable[str]] = ..., raw_text: _Optional[str] = ...) -> None: ...
+    def __init__(self, name: _Optional[str] = ..., email: _Optional[str] = ..., phone: _Optional[str] = ..., linkedin: _Optional[str] = ..., github: _Optional[str] = ..., website: _Optional[str] = ..., location: _Optional[str] = ..., headline: _Optional[str] = ..., summary: _Optional[str] = ..., experiences: _Optional[_Iterable[_Union[ExperienceData, _Mapping]]] = ..., educations: _Optional[_Iterable[_Union[EducationData, _Mapping]]] = ..., projects: _Optional[_Iterable[_Union[ProjectData, _Mapping]]] = ..., skills: _Optional[_Iterable[_Union[SkillData, _Mapping]]] = ..., certifications: _Optional[_Iterable[_Union[CertificationData, _Mapping]]] = ..., achievements: _Optional[_Iterable[str]] = ..., languages: _Optional[_Iterable[_Union[LanguageData, _Mapping]]] = ..., raw_text: _Optional[str] = ...) -> None: ...
 
 class ExperienceData(_message.Message):
-    __slots__ = ("company", "title", "start_date", "end_date", "description", "is_current")
+    __slots__ = ("company", "title", "location", "employment_type", "start_date", "end_date", "is_current", "description", "achievements", "technologies")
     COMPANY_FIELD_NUMBER: _ClassVar[int]
     TITLE_FIELD_NUMBER: _ClassVar[int]
+    LOCATION_FIELD_NUMBER: _ClassVar[int]
+    EMPLOYMENT_TYPE_FIELD_NUMBER: _ClassVar[int]
     START_DATE_FIELD_NUMBER: _ClassVar[int]
     END_DATE_FIELD_NUMBER: _ClassVar[int]
-    DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     IS_CURRENT_FIELD_NUMBER: _ClassVar[int]
+    DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
+    ACHIEVEMENTS_FIELD_NUMBER: _ClassVar[int]
+    TECHNOLOGIES_FIELD_NUMBER: _ClassVar[int]
     company: str
     title: str
+    location: str
+    employment_type: str
     start_date: str
     end_date: str
-    description: str
     is_current: bool
-    def __init__(self, company: _Optional[str] = ..., title: _Optional[str] = ..., start_date: _Optional[str] = ..., end_date: _Optional[str] = ..., description: _Optional[str] = ..., is_current: bool = ...) -> None: ...
+    description: str
+    achievements: _containers.RepeatedScalarFieldContainer[str]
+    technologies: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, company: _Optional[str] = ..., title: _Optional[str] = ..., location: _Optional[str] = ..., employment_type: _Optional[str] = ..., start_date: _Optional[str] = ..., end_date: _Optional[str] = ..., is_current: bool = ..., description: _Optional[str] = ..., achievements: _Optional[_Iterable[str]] = ..., technologies: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class EducationData(_message.Message):
-    __slots__ = ("school", "degree", "field", "start_date", "end_date")
+    __slots__ = ("school", "degree", "field", "location", "start_date", "end_date", "gpa", "description", "activities", "honors")
     SCHOOL_FIELD_NUMBER: _ClassVar[int]
     DEGREE_FIELD_NUMBER: _ClassVar[int]
     FIELD_FIELD_NUMBER: _ClassVar[int]
+    LOCATION_FIELD_NUMBER: _ClassVar[int]
     START_DATE_FIELD_NUMBER: _ClassVar[int]
     END_DATE_FIELD_NUMBER: _ClassVar[int]
+    GPA_FIELD_NUMBER: _ClassVar[int]
+    DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
+    ACTIVITIES_FIELD_NUMBER: _ClassVar[int]
+    HONORS_FIELD_NUMBER: _ClassVar[int]
     school: str
     degree: str
     field: str
+    location: str
     start_date: str
     end_date: str
-    def __init__(self, school: _Optional[str] = ..., degree: _Optional[str] = ..., field: _Optional[str] = ..., start_date: _Optional[str] = ..., end_date: _Optional[str] = ...) -> None: ...
+    gpa: str
+    description: str
+    activities: _containers.RepeatedScalarFieldContainer[str]
+    honors: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, school: _Optional[str] = ..., degree: _Optional[str] = ..., field: _Optional[str] = ..., location: _Optional[str] = ..., start_date: _Optional[str] = ..., end_date: _Optional[str] = ..., gpa: _Optional[str] = ..., description: _Optional[str] = ..., activities: _Optional[_Iterable[str]] = ..., honors: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class ProjectData(_message.Message):
+    __slots__ = ("name", "description", "url", "repo_url", "technologies", "start_date", "end_date", "highlights")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
+    URL_FIELD_NUMBER: _ClassVar[int]
+    REPO_URL_FIELD_NUMBER: _ClassVar[int]
+    TECHNOLOGIES_FIELD_NUMBER: _ClassVar[int]
+    START_DATE_FIELD_NUMBER: _ClassVar[int]
+    END_DATE_FIELD_NUMBER: _ClassVar[int]
+    HIGHLIGHTS_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    description: str
+    url: str
+    repo_url: str
+    technologies: _containers.RepeatedScalarFieldContainer[str]
+    start_date: str
+    end_date: str
+    highlights: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., url: _Optional[str] = ..., repo_url: _Optional[str] = ..., technologies: _Optional[_Iterable[str]] = ..., start_date: _Optional[str] = ..., end_date: _Optional[str] = ..., highlights: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class SkillData(_message.Message):
+    __slots__ = ("name", "level", "category")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    LEVEL_FIELD_NUMBER: _ClassVar[int]
+    CATEGORY_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    level: str
+    category: str
+    def __init__(self, name: _Optional[str] = ..., level: _Optional[str] = ..., category: _Optional[str] = ...) -> None: ...
+
+class CertificationData(_message.Message):
+    __slots__ = ("name", "issuer", "date", "url")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    ISSUER_FIELD_NUMBER: _ClassVar[int]
+    DATE_FIELD_NUMBER: _ClassVar[int]
+    URL_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    issuer: str
+    date: str
+    url: str
+    def __init__(self, name: _Optional[str] = ..., issuer: _Optional[str] = ..., date: _Optional[str] = ..., url: _Optional[str] = ...) -> None: ...
+
+class LanguageData(_message.Message):
+    __slots__ = ("language", "proficiency")
+    LANGUAGE_FIELD_NUMBER: _ClassVar[int]
+    PROFICIENCY_FIELD_NUMBER: _ClassVar[int]
+    language: str
+    proficiency: str
+    def __init__(self, language: _Optional[str] = ..., proficiency: _Optional[str] = ...) -> None: ...
 
 class BuildResumeRequest(_message.Message):
     __slots__ = ("user_id", "job_title", "job_description", "profile", "language")
@@ -365,3 +451,91 @@ class JobAnalysisResponse(_message.Message):
     salary_estimate: str
     interview_tips: _containers.RepeatedScalarFieldContainer[str]
     def __init__(self, required_skills: _Optional[_Iterable[str]] = ..., nice_to_have_skills: _Optional[_Iterable[str]] = ..., experience_level: _Optional[str] = ..., salary_estimate: _Optional[str] = ..., interview_tips: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class StartProfileInterviewRequest(_message.Message):
+    __slots__ = ("user_id", "session_id", "language", "existing_profile")
+    USER_ID_FIELD_NUMBER: _ClassVar[int]
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    LANGUAGE_FIELD_NUMBER: _ClassVar[int]
+    EXISTING_PROFILE_FIELD_NUMBER: _ClassVar[int]
+    user_id: str
+    session_id: str
+    language: str
+    existing_profile: str
+    def __init__(self, user_id: _Optional[str] = ..., session_id: _Optional[str] = ..., language: _Optional[str] = ..., existing_profile: _Optional[str] = ...) -> None: ...
+
+class ProfileInterviewResponse(_message.Message):
+    __slots__ = ("success", "welcome_message", "first_question", "current_phase")
+    SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    WELCOME_MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    FIRST_QUESTION_FIELD_NUMBER: _ClassVar[int]
+    CURRENT_PHASE_FIELD_NUMBER: _ClassVar[int]
+    success: bool
+    welcome_message: str
+    first_question: str
+    current_phase: str
+    def __init__(self, success: bool = ..., welcome_message: _Optional[str] = ..., first_question: _Optional[str] = ..., current_phase: _Optional[str] = ...) -> None: ...
+
+class ProfileInterviewMessageRequest(_message.Message):
+    __slots__ = ("session_id", "user_message")
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    USER_MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    session_id: str
+    user_message: str
+    def __init__(self, session_id: _Optional[str] = ..., user_message: _Optional[str] = ...) -> None: ...
+
+class ProfileInterviewChunk(_message.Message):
+    __slots__ = ("content", "is_final", "phase")
+    CONTENT_FIELD_NUMBER: _ClassVar[int]
+    IS_FINAL_FIELD_NUMBER: _ClassVar[int]
+    PHASE_FIELD_NUMBER: _ClassVar[int]
+    content: str
+    is_final: bool
+    phase: str
+    def __init__(self, content: _Optional[str] = ..., is_final: bool = ..., phase: _Optional[str] = ...) -> None: ...
+
+class GetProfileInterviewStateRequest(_message.Message):
+    __slots__ = ("session_id",)
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    session_id: str
+    def __init__(self, session_id: _Optional[str] = ...) -> None: ...
+
+class ProfileInterviewStateResponse(_message.Message):
+    __slots__ = ("success", "session_id", "user_id", "current_phase", "phase_name", "turn_count", "status", "portrait_summary")
+    SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    USER_ID_FIELD_NUMBER: _ClassVar[int]
+    CURRENT_PHASE_FIELD_NUMBER: _ClassVar[int]
+    PHASE_NAME_FIELD_NUMBER: _ClassVar[int]
+    TURN_COUNT_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    PORTRAIT_SUMMARY_FIELD_NUMBER: _ClassVar[int]
+    success: bool
+    session_id: str
+    user_id: str
+    current_phase: str
+    phase_name: str
+    turn_count: int
+    status: str
+    portrait_summary: str
+    def __init__(self, success: bool = ..., session_id: _Optional[str] = ..., user_id: _Optional[str] = ..., current_phase: _Optional[str] = ..., phase_name: _Optional[str] = ..., turn_count: _Optional[int] = ..., status: _Optional[str] = ..., portrait_summary: _Optional[str] = ...) -> None: ...
+
+class FinishProfileInterviewRequest(_message.Message):
+    __slots__ = ("session_id",)
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    session_id: str
+    def __init__(self, session_id: _Optional[str] = ...) -> None: ...
+
+class CollectedProfileResponse(_message.Message):
+    __slots__ = ("success", "profile_json", "completeness_score", "missing_sections", "error_message")
+    SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    PROFILE_JSON_FIELD_NUMBER: _ClassVar[int]
+    COMPLETENESS_SCORE_FIELD_NUMBER: _ClassVar[int]
+    MISSING_SECTIONS_FIELD_NUMBER: _ClassVar[int]
+    ERROR_MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    success: bool
+    profile_json: str
+    completeness_score: int
+    missing_sections: _containers.RepeatedScalarFieldContainer[str]
+    error_message: str
+    def __init__(self, success: bool = ..., profile_json: _Optional[str] = ..., completeness_score: _Optional[int] = ..., missing_sections: _Optional[_Iterable[str]] = ..., error_message: _Optional[str] = ...) -> None: ...
