@@ -266,11 +266,11 @@ export default function CommunityPage() {
                             <div className="flex gap-3">
                                 <Avatar className="h-10 w-10">
                                     <AvatarFallback className="bg-slate-200 text-slate-600 font-bold">
-                                      {post.authorName[0].toUpperCase()}
+                                      {(post.authorName || 'U')[0].toUpperCase()}
                                     </AvatarFallback>
                                 </Avatar>
                                 <div>
-                                    <h4 className="font-semibold text-sm hover:underline cursor-pointer">{post.authorName}</h4>
+                                    <h4 className="font-semibold text-sm hover:underline cursor-pointer">{post.authorName || 'Unknown'}</h4>
                                     <p className="text-xs text-muted-foreground">
                                       {post.authorRole && `${post.authorRole} • `}{formatTime(post.createdAt)}
                                     </p>
@@ -320,12 +320,12 @@ export default function CommunityPage() {
                                                 <div key={comment.id} className="flex gap-3">
                                                     <Avatar className="h-6 w-6">
                                                         <AvatarFallback className="bg-primary/10 text-primary text-[10px]">
-                                                          {comment.authorName[0].toUpperCase()}
+                                                          {(comment.authorName || 'U')[0].toUpperCase()}
                                                         </AvatarFallback>
                                                     </Avatar>
                                                     <div className="flex-1">
                                                         <div className="flex items-baseline gap-2">
-                                                            <span className="text-xs font-semibold">{comment.authorName}</span>
+                                                            <span className="text-xs font-semibold">{comment.authorName || 'Unknown'}</span>
                                                             <span className="text-[10px] text-muted-foreground">{formatTime(comment.createdAt)}</span>
                                                         </div>
                                                         <p className="text-sm text-foreground/90">{comment.content}</p>

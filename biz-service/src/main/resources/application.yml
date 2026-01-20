@@ -79,7 +79,7 @@ grpc:
   ai-engine:
     host: ${AI_ENGINE_HOST:localhost}
     port: ${AI_ENGINE_PORT:50051}
-    enabled: ${AI_ENGINE_ENABLED:false}
+    enabled: ${AI_ENGINE_ENABLED:true}
   search-service:
     host: ${SEARCH_SERVICE_HOST:localhost}
     port: ${SEARCH_SERVICE_PORT:50052}

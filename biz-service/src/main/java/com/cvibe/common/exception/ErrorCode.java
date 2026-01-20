@@ -55,6 +55,9 @@ public enum ErrorCode {
     SKILL_ALREADY_EXISTS(30004, HttpStatus.BAD_REQUEST, "Skill already exists"),
     EDUCATION_NOT_FOUND(30005, HttpStatus.NOT_FOUND, "Education not found"),
     PROJECT_NOT_FOUND(30006, HttpStatus.NOT_FOUND, "Project not found"),
+    LANGUAGE_NOT_FOUND(30007, HttpStatus.NOT_FOUND, "Language not found"),
+    LANGUAGE_ALREADY_EXISTS(30008, HttpStatus.BAD_REQUEST, "Language already exists"),
+    CERTIFICATION_NOT_FOUND(30009, HttpStatus.NOT_FOUND, "Certification not found"),
 
     // ==================== Resume Errors (40000-40999) ====================
     RESUME_NOT_FOUND(40001, HttpStatus.NOT_FOUND, "Resume not found"),
@@ -63,6 +66,8 @@ public enum ErrorCode {
     FILE_TYPE_NOT_ALLOWED(40004, HttpStatus.BAD_REQUEST, "File type not allowed"),
     FILE_UPLOAD_FAILED(40005, HttpStatus.INTERNAL_SERVER_ERROR, "File upload failed"),
     RESUME_PARSE_FAILED(40006, HttpStatus.INTERNAL_SERVER_ERROR, "Resume parsing failed"),
+    RESUME_NOT_PARSED(40007, HttpStatus.BAD_REQUEST, "Resume has not been parsed yet"),
+    RESUME_SYNC_FAILED(40008, HttpStatus.INTERNAL_SERVER_ERROR, "Failed to sync resume to profile"),
 
     // ==================== Resume Builder Errors (50000-50999) ====================
     TEMPLATE_NOT_FOUND(50001, HttpStatus.NOT_FOUND, "Template not found"),
@@ -115,7 +120,8 @@ public enum ErrorCode {
     // ==================== AI Service Errors (130000-130999) ====================
     AI_SERVICE_UNAVAILABLE(130001, HttpStatus.SERVICE_UNAVAILABLE, "AI service unavailable"),
     AI_REQUEST_TIMEOUT(130002, HttpStatus.GATEWAY_TIMEOUT, "AI request timeout"),
-    AI_RESPONSE_INVALID(130003, HttpStatus.INTERNAL_SERVER_ERROR, "Invalid AI response");
+    AI_RESPONSE_INVALID(130003, HttpStatus.INTERNAL_SERVER_ERROR, "Invalid AI response"),
+    AI_ENGINE_ERROR(130004, HttpStatus.INTERNAL_SERVER_ERROR, "AI engine error");
 
     private final int code;
     private final HttpStatus httpStatus;

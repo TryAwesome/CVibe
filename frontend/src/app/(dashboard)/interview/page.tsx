@@ -2,32 +2,40 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Send, Bot, User, Loader2, Plus, Clock, CheckCircle, Pause, Play, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/contexts/auth-context";
-import api, { InterviewSession, InterviewAnswer } from "@/lib/api";
+import api, { InterviewSession, ProfileInterviewStartResponse } from "@/lib/api";
 
 type Message = {
   id: number;
   role: "ai" | "user";
   content: string;
-  questionId?: string;
+};
+
+type ProfileSession = {
+  id: string;
+  sessionId: string;
+  status: "active" | "paused" | "completed";
+  currentPhase: string;
+  phaseName: string;
+  createdAt: string;
 };
 
 export default function InterviewPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const [sessions, setSessions] = useState<InterviewSession[]>([]);
-  const [activeSession, setActiveSession] = useState<InterviewSession | null>(null);
+  const [sessions, setSessions] = useState<ProfileSession[]>([]);
+  const [activeSession, setActiveSession] = useState<ProfileSession | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(true);
-  const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Fetch sessions on mount
+  // Load sessions from localStorage on mount
   useEffect(() => {
     if (isAuthenticated) {
       loadSessions();
@@ -37,9 +45,10 @@ export default function InterviewPage() {
   const loadSessions = async () => {
     try {
       setLoadingSessions(true);
-      const res = await api.getInterviewSessions();
-      if (res.success && res.data) {
-        setSessions(res.data);
+      // Load profile interview sessions from localStorage
+      const savedSessions = localStorage.getItem('profileInterviewSessions');
+      if (savedSessions) {
+        setSessions(JSON.parse(savedSessions));
       }
     } catch (error) {
       console.error("Failed to load sessions:", error);
@@ -48,63 +57,55 @@ export default function InterviewPage() {
     }
   };
 
-  const loadSessionAnswers = async (sessionId: string) => {
-    try {
-      const res = await api.getAnswers(sessionId);
-      if (!res.success || !res.data) return;
-      const answers = res.data;
-      // Convert answers to messages
-      const msgs: Message[] = [];
-      answers.forEach((answer, index) => {
-        msgs.push({
-          id: index * 2 + 1,
-          role: "ai",
-          content: answer.question || `Question ${index + 1}`,
-          questionId: answer.id,
-        });
-        if (answer.answer) {
-          msgs.push({
-            id: index * 2 + 2,
-            role: "user",
-            content: answer.answer,
-          });
-        }
-      });
-      setMessages(msgs);
-      // Set current question to the last unanswered one
-      const unanswered = answers.find(a => !a.answer);
-      if (unanswered) {
-        setCurrentQuestionId(unanswered.id);
-      }
-    } catch (error) {
-      console.error("Failed to load answers:", error);
-    }
+  const saveSessions = (newSessions: ProfileSession[]) => {
+    localStorage.setItem('profileInterviewSessions', JSON.stringify(newSessions));
+    setSessions(newSessions);
   };
 
   const startNewSession = async () => {
     try {
       setIsLoading(true);
-      const res = await api.createInterviewSession({ sessionType: "INITIAL_PROFILE" });
-      if (!res.success || !res.data) return;
-      const stateResponse = res.data;
-      const session = stateResponse.session;
-      setSessions(prev => [session, ...prev]);
-      setActiveSession(session);
-      
-      // If there's a current question from the backend, show it
-      const initialContent = stateResponse.currentQuestion?.question || 
-        "Hello! I'm your CVibe AI Assistant. My goal is to help you build a comprehensive profile database. Let's start with your **Education**. \n\nCould you tell me which university you attended and what was your major?";
-      
+
+      // Call the new Profile Interview API
+      const res = await api.startProfileInterview({ language: "zh" });
+
+      if (!res.success || !res.data) {
+        console.error("Failed to start profile interview:", res);
+        return;
+      }
+
+      const data = res.data;
+
+      // Create a new profile session
+      const newSession: ProfileSession = {
+        id: data.sessionId,
+        sessionId: data.sessionId,
+        status: "active",
+        currentPhase: data.currentPhase,
+        phaseName: data.currentPhase,
+        createdAt: new Date().toISOString(),
+      };
+
+      const newSessions = [newSession, ...sessions];
+      saveSessions(newSessions);
+      setActiveSession(newSession);
+
+      // Show welcome message and first question from AI
+      const welcomeContent = data.welcomeMessage + "\n\n" + data.firstQuestion;
+
       setMessages([{
         id: 1,
         role: "ai",
-        content: initialContent,
-        questionId: stateResponse.currentQuestion?.id ? String(stateResponse.currentQuestion.id) : undefined,
+        content: welcomeContent,
       }]);
-      
-      if (stateResponse.currentQuestion?.id) {
-        setCurrentQuestionId(String(stateResponse.currentQuestion.id));
-      }
+
+      // Save messages to localStorage
+      localStorage.setItem(`profileInterview_${data.sessionId}_messages`, JSON.stringify([{
+        id: 1,
+        role: "ai",
+        content: welcomeContent,
+      }]));
+
     } catch (error) {
       console.error("Failed to create session:", error);
     } finally {
@@ -112,37 +113,23 @@ export default function InterviewPage() {
     }
   };
 
-  const selectSession = async (session: InterviewSession) => {
+  const selectSession = async (session: ProfileSession) => {
     setActiveSession(session);
-    await loadSessionAnswers(session.id);
-  };
-
-  const pauseSession = async () => {
-    if (!activeSession) return;
-    try {
-      await api.pauseInterviewSession(String(activeSession.id));
-      setActiveSession({ ...activeSession, status: "paused" });
-      setSessions(prev => prev.map(s => s.id === activeSession.id ? { ...s, status: "paused" } : s));
-    } catch (error) {
-      console.error("Failed to pause session:", error);
-    }
-  };
-
-  const resumeSession = async () => {
-    if (!activeSession) return;
-    try {
-      await api.resumeInterviewSession(String(activeSession.id));
-      setActiveSession({ ...activeSession, status: "active" });
-      setSessions(prev => prev.map(s => s.id === activeSession.id ? { ...s, status: "active" } : s));
-    } catch (error) {
-      console.error("Failed to resume session:", error);
+    // Load messages from localStorage
+    const savedMessages = localStorage.getItem(`profileInterview_${session.sessionId}_messages`);
+    if (savedMessages) {
+      setMessages(JSON.parse(savedMessages));
+    } else {
+      setMessages([]);
     }
   };
 
   const deleteSession = async (sessionId: string) => {
     try {
-      await api.deleteInterviewSession(sessionId);
-      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      const newSessions = sessions.filter(s => s.id !== sessionId);
+      saveSessions(newSessions);
+      localStorage.removeItem(`profileInterview_${sessionId}_messages`);
+
       if (activeSession?.id === sessionId) {
         setActiveSession(null);
         setMessages([]);
@@ -162,42 +149,125 @@ export default function InterviewPage() {
   const handleSend = async () => {
     if (!input.trim() || !activeSession) return;
 
+    const messageToSend = input.trim(); // Save the input value before clearing
+
     const userMsg: Message = {
       id: Date.now(),
       role: "user",
-      content: input,
+      content: messageToSend,
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
     setInput("");
+
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+
     setIsLoading(true);
 
     try {
-      // Submit answer to API
-      if (currentQuestionId) {
-        await api.submitAnswer(String(activeSession.id), { questionId: String(currentQuestionId), answer: input });
+      // Call the Profile Interview API to send message
+      const res = await api.sendProfileInterviewMessage(activeSession.sessionId, messageToSend);
+
+      if (!res.success || !res.data) {
+        console.error("Failed to send message:", res);
+        setIsLoading(false);
+        return;
       }
 
-      // Get next question from AI (mock for now, would be real AI response)
-      setTimeout(() => {
-        const aiMsg: Message = {
-          id: Date.now() + 1,
-          role: "ai",
-          content: generateFollowUpQuestion(messages.length),
+      const data = res.data;
+
+      // Add AI response to messages
+      const aiMsg: Message = {
+        id: Date.now() + 1,
+        role: "ai",
+        content: data.response,
+      };
+
+      const updatedMessages = [...newMessages, aiMsg];
+      setMessages(updatedMessages);
+
+      // Save messages to localStorage
+      localStorage.setItem(`profileInterview_${activeSession.sessionId}_messages`, JSON.stringify(updatedMessages));
+
+      // Update session phase
+      if (data.currentPhase !== activeSession.currentPhase) {
+        const updatedSession = {
+          ...activeSession,
+          currentPhase: data.currentPhase,
+          phaseName: data.phaseName,
+          status: data.isComplete ? "completed" as const : "active" as const,
         };
-        setMessages((prev) => [...prev, aiMsg]);
-        setIsLoading(false);
-      }, 1500);
+        setActiveSession(updatedSession);
+
+        const updatedSessions = sessions.map(s =>
+          s.id === activeSession.id ? updatedSession : s
+        );
+        saveSessions(updatedSessions);
+      }
+
     } catch (error) {
-      console.error("Failed to submit answer:", error);
+      console.error("Failed to send message:", error);
+    } finally {
       setIsLoading(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter without Shift = Send
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+    // Shift+Enter = New line (default behavior, no action needed)
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+
+    // Auto-resize logic
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+    }
+  };
+
+  const finishInterview = async () => {
+    if (!activeSession) return;
+
+    try {
+      setIsLoading(true);
+      const res = await api.finishProfileInterview(activeSession.sessionId);
+
+      if (res.success && res.data) {
+        // Update session status
+        const updatedSession = { ...activeSession, status: "completed" as const };
+        setActiveSession(updatedSession);
+
+        const updatedSessions = sessions.map(s =>
+          s.id === activeSession.id ? updatedSession : s
+        );
+        saveSessions(updatedSessions);
+
+        // Add completion message
+        const completionMsg: Message = {
+          id: Date.now(),
+          role: "ai",
+          content: `🎉 面试完成！\n\n完整度评分: ${res.data.completenessScore}%\n${res.data.syncedToProfile ? '✅ 已同步到个人资料' : ''}\n\n${res.data.missingSections.length > 0 ? `缺失部分: ${res.data.missingSections.join(', ')}` : ''}`,
+        };
+
+        const updatedMessages = [...messages, completionMsg];
+        setMessages(updatedMessages);
+        localStorage.setItem(`profileInterview_${activeSession.sessionId}_messages`, JSON.stringify(updatedMessages));
+      }
+    } catch (error) {
+      console.error("Failed to finish interview:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -223,13 +293,13 @@ export default function InterviewPage() {
       <div className="w-80 flex flex-col gap-4">
         <Button onClick={startNewSession} disabled={isLoading} className="w-full">
           <Plus className="h-4 w-4 mr-2" />
-          New Session
+          New Profile Interview
         </Button>
-        
+
         <div className="flex-1 overflow-y-auto space-y-2">
           {sessions.length === 0 ? (
             <Card className="p-4 text-center text-muted-foreground text-sm">
-              No sessions yet. Click the button above to start.
+              No sessions yet. Click the button above to start a deep profile interview.
             </Card>
           ) : (
             sessions.map((session) => (
@@ -250,7 +320,7 @@ export default function InterviewPage() {
                     ) : (
                       <Clock className="h-4 w-4 text-blue-500" />
                     )}
-                    <span className="font-medium text-sm">{session.topic || "Profile Building"}</span>
+                    <span className="font-medium text-sm">Profile Interview</span>
                   </div>
                   <Button
                     variant="ghost"
@@ -265,6 +335,9 @@ export default function InterviewPage() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
+                  Phase: {session.currentPhase || "basic_info"}
+                </p>
+                <p className="text-xs text-muted-foreground">
                   {session.createdAt ? new Date(session.createdAt).toLocaleDateString() : ""}
                 </p>
               </Card>
@@ -279,7 +352,9 @@ export default function InterviewPage() {
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
             <div className="text-center">
               <Bot className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-              <p>Select a session or create a new one to begin</p>
+              <p className="font-medium">Profile Interview (Multi-Agent)</p>
+              <p className="text-sm mt-2">Start a new session to begin deep background collection</p>
+              <p className="text-xs mt-1">Uses AI-powered Questioner, Analyzer & Summarizer</p>
             </div>
           </div>
         ) : (
@@ -291,22 +366,18 @@ export default function InterviewPage() {
                   <Bot className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <h2 className="font-semibold">Profile Builder AI</h2>
+                  <h2 className="font-semibold">Profile Interview AI</h2>
                   <p className="text-xs text-muted-foreground">
-                    Topic: {activeSession.topic || "Education & Experience"}
+                    Phase: {activeSession.currentPhase || "basic_info"} | Multi-Agent Architecture
                   </p>
                 </div>
               </div>
               <div className="flex gap-2">
-                {activeSession.status === "active" ? (
-                  <Button variant="outline" size="sm" onClick={pauseSession}>
-                    <Pause className="h-4 w-4 mr-1" /> Pause
+                {activeSession.status === "active" && (
+                  <Button variant="outline" size="sm" onClick={finishInterview} disabled={isLoading}>
+                    <CheckCircle className="h-4 w-4 mr-1" /> Finish & Sync
                   </Button>
-                ) : activeSession.status === "paused" ? (
-                  <Button variant="outline" size="sm" onClick={resumeSession}>
-                    <Play className="h-4 w-4 mr-1" /> Resume
-                  </Button>
-                ) : null}
+                )}
               </div>
             </div>
 
@@ -346,8 +417,11 @@ export default function InterviewPage() {
                   <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
                     <Bot className="h-5 w-5" />
                   </div>
-                  <div className="bg-muted/50 border rounded-2xl px-4 py-3 flex items-center">
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <div className="bg-muted/50 border rounded-2xl px-4 py-3">
+                    <div className="flex items-center">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      <span className="ml-2 text-sm text-muted-foreground">AI is thinking...</span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -355,25 +429,28 @@ export default function InterviewPage() {
 
             {/* Input Area */}
             <div className="p-4 border-t bg-muted/10">
-              <div className="flex gap-2">
-                <Input
+              <div className="flex gap-2 items-end">
+                <Textarea
+                  ref={textareaRef}
                   placeholder="Type your answer..."
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
-                  className="flex-1 bg-background"
-                  disabled={isLoading || activeSession.status === "completed" || activeSession.status === "paused"}
+                  className="flex-1 bg-background min-h-[44px] max-h-[200px] py-3 resize-none overflow-y-auto"
+                  disabled={isLoading || activeSession.status === "completed"}
+                  rows={1}
                 />
-                <Button 
-                  onClick={handleSend} 
-                  disabled={isLoading || !input.trim() || activeSession.status === "completed" || activeSession.status === "paused"} 
+                <Button
+                  onClick={handleSend}
+                  disabled={isLoading || !input.trim() || activeSession.status === "completed"}
                   size="icon"
+                  className="h-[44px] w-[44px]"
                 >
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
               <p className="text-[10px] text-center text-muted-foreground mt-2">
-                AI may make mistakes. Please verify important information.
+                Press Enter to send, Shift+Enter for new line
               </p>
             </div>
           </>
@@ -381,17 +458,4 @@ export default function InterviewPage() {
       </div>
     </div>
   );
-}
-
-// Follow-up question generator (would be replaced by real AI in production)
-function generateFollowUpQuestion(step: number): string {
-  const responses = [
-    "Got it. What was your **GPA** (Grade Point Average)?",
-    "Impressive. Did you take any specific courses related to **Data Structures** or **Algorithms**?",
-    "Okay. Now let's move on to your **Internships**. Have you completed any internships recently?",
-    "What was your main responsibility during that internship?",
-    "Did you use any specific technologies like **React**, **Python**, or **AWS**?",
-    "Great details! I've updated your profile database. Is there anything else you'd like to add regarding your experience?",
-  ];
-  return responses[step % responses.length];
 }

@@ -139,4 +139,65 @@ public class InterviewController {
         interviewService.deleteSession(principal.getId(), sessionId);
         return ApiResponse.success(null);
     }
+
+    // ==================== Profile Interview (AI-powered) ====================
+
+    /**
+     * Start a profile collection interview session
+     * POST /api/v1/interviews/profile/start
+     */
+    @PostMapping("/profile/start")
+    public ApiResponse<ProfileInterviewStartResponse> startProfileInterview(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody(required = false) StartProfileInterviewRequest request) {
+        log.info("Starting profile interview for user: {}", principal.getId());
+        if (request == null) {
+            request = new StartProfileInterviewRequest();
+        }
+        ProfileInterviewStartResponse response = interviewService.startProfileInterview(principal.getId(), request);
+        return ApiResponse.success(response);
+    }
+
+    /**
+     * Send a message in profile interview session
+     * POST /api/v1/interviews/profile/{sessionId}/message
+     */
+    @PostMapping("/profile/{sessionId}/message")
+    public ApiResponse<ProfileInterviewMessageResponse> sendProfileInterviewMessage(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID sessionId,
+            @Valid @RequestBody ProfileInterviewMessageRequest request) {
+        log.info("Sending profile interview message for session: {}", sessionId);
+        ProfileInterviewMessageResponse response = interviewService.sendProfileInterviewMessage(
+                principal.getId(), sessionId, request);
+        return ApiResponse.success(response);
+    }
+
+    /**
+     * Get profile interview state
+     * GET /api/v1/interviews/profile/{sessionId}/state
+     */
+    @GetMapping("/profile/{sessionId}/state")
+    public ApiResponse<ProfileInterviewStateResponse> getProfileInterviewState(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID sessionId) {
+        log.info("Getting profile interview state for session: {}", sessionId);
+        ProfileInterviewStateResponse response = interviewService.getProfileInterviewState(
+                principal.getId(), sessionId);
+        return ApiResponse.success(response);
+    }
+
+    /**
+     * Finish profile interview and sync to profile
+     * POST /api/v1/interviews/profile/{sessionId}/finish
+     */
+    @PostMapping("/profile/{sessionId}/finish")
+    public ApiResponse<ProfileInterviewFinishResponse> finishProfileInterview(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID sessionId) {
+        log.info("Finishing profile interview for session: {}", sessionId);
+        ProfileInterviewFinishResponse response = interviewService.finishProfileInterview(
+                principal.getId(), sessionId);
+        return ApiResponse.success(response);
+    }
 }

@@ -2,8 +2,10 @@ package com.cvibe.profile.controller;
 
 import com.cvibe.common.dto.ApiResponse;
 import com.cvibe.common.security.UserPrincipal;
+import com.cvibe.profile.dto.CertificationDto;
 import com.cvibe.profile.dto.EducationDto;
 import com.cvibe.profile.dto.ExperienceDto;
+import com.cvibe.profile.dto.LanguageDto;
 import com.cvibe.profile.dto.ProfileDto;
 import com.cvibe.profile.dto.ProfileRequest;
 import com.cvibe.profile.dto.ProjectDto;
@@ -222,6 +224,100 @@ public class ProfileController {
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable UUID projectId) {
         profileService.deleteProject(principal.getUserId(), projectId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    // ==================== Language Endpoints ====================
+
+    /**
+     * Get all languages for the current user.
+     */
+    @GetMapping("/languages")
+    public ResponseEntity<ApiResponse<List<LanguageDto>>> getLanguages(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        List<LanguageDto> languages = profileService.getLanguages(principal.getUserId());
+        return ResponseEntity.ok(ApiResponse.success(languages));
+    }
+
+    /**
+     * Add a new language.
+     */
+    @PostMapping("/languages")
+    public ResponseEntity<ApiResponse<LanguageDto>> addLanguage(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody LanguageDto request) {
+        LanguageDto language = profileService.addLanguage(principal.getUserId(), request);
+        return ResponseEntity.ok(ApiResponse.success(language));
+    }
+
+    /**
+     * Update an existing language.
+     */
+    @PutMapping("/languages/{languageId}")
+    public ResponseEntity<ApiResponse<LanguageDto>> updateLanguage(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID languageId,
+            @Valid @RequestBody LanguageDto request) {
+        LanguageDto language = profileService.updateLanguage(
+                principal.getUserId(), languageId, request);
+        return ResponseEntity.ok(ApiResponse.success(language));
+    }
+
+    /**
+     * Delete a language.
+     */
+    @DeleteMapping("/languages/{languageId}")
+    public ResponseEntity<ApiResponse<Void>> deleteLanguage(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID languageId) {
+        profileService.deleteLanguage(principal.getUserId(), languageId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    // ==================== Certification Endpoints ====================
+
+    /**
+     * Get all certifications for the current user.
+     */
+    @GetMapping("/certifications")
+    public ResponseEntity<ApiResponse<List<CertificationDto>>> getCertifications(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        List<CertificationDto> certifications = profileService.getCertifications(principal.getUserId());
+        return ResponseEntity.ok(ApiResponse.success(certifications));
+    }
+
+    /**
+     * Add a new certification.
+     */
+    @PostMapping("/certifications")
+    public ResponseEntity<ApiResponse<CertificationDto>> addCertification(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody CertificationDto request) {
+        CertificationDto certification = profileService.addCertification(principal.getUserId(), request);
+        return ResponseEntity.ok(ApiResponse.success(certification));
+    }
+
+    /**
+     * Update an existing certification.
+     */
+    @PutMapping("/certifications/{certificationId}")
+    public ResponseEntity<ApiResponse<CertificationDto>> updateCertification(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID certificationId,
+            @Valid @RequestBody CertificationDto request) {
+        CertificationDto certification = profileService.updateCertification(
+                principal.getUserId(), certificationId, request);
+        return ResponseEntity.ok(ApiResponse.success(certification));
+    }
+
+    /**
+     * Delete a certification.
+     */
+    @DeleteMapping("/certifications/{certificationId}")
+    public ResponseEntity<ApiResponse<Void>> deleteCertification(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID certificationId) {
+        profileService.deleteCertification(principal.getUserId(), certificationId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

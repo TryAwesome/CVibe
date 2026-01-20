@@ -8,7 +8,7 @@ import { Plus, Pencil, Briefcase, Loader2, Trash2, X, Check, Code, GraduationCap
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import api, { Profile, Experience, Skill, Education, Project, AddExperienceRequest, AddEducationRequest, AddProjectRequest } from "@/lib/api";
+import api, { Profile, Experience, Skill, Education, Project, AddExperienceRequest, AddEducationRequest, AddProjectRequest, Language, AddLanguageRequest, Certification, AddCertificationRequest } from "@/lib/api";
 
 export function ProfileView() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -16,10 +16,14 @@ export function ProfileView() {
   const [educations, setEducations] = useState<Education[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
+  const [languages, setLanguages] = useState<Language[]>([]);
+  const [certifications, setCertifications] = useState<Certification[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingExperience, setEditingExperience] = useState<Experience | null>(null);
   const [editingEducation, setEditingEducation] = useState<Education | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [editingLanguage, setEditingLanguage] = useState<Language | null>(null);
+  const [editingCertification, setEditingCertification] = useState<Certification | null>(null);
   const [newSkill, setNewSkill] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -30,18 +34,22 @@ export function ProfileView() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [profileRes, experiencesRes, educationsRes, projectsRes, skillsRes] = await Promise.all([
+      const [profileRes, experiencesRes, educationsRes, projectsRes, skillsRes, languagesRes, certificationsRes] = await Promise.all([
         api.getProfile(),
         api.getExperiences(),
         api.getEducations(),
         api.getProjects(),
         api.getSkills(),
+        api.getLanguages(),
+        api.getCertifications(),
       ]);
       if (profileRes.success && profileRes.data) setProfile(profileRes.data);
       if (experiencesRes.success && experiencesRes.data) setExperiences(experiencesRes.data);
       if (educationsRes.success && educationsRes.data) setEducations(educationsRes.data);
       if (projectsRes.success && projectsRes.data) setProjects(projectsRes.data);
       if (skillsRes.success && skillsRes.data) setSkills(skillsRes.data);
+      if (languagesRes.success && languagesRes.data) setLanguages(languagesRes.data);
+      if (certificationsRes.success && certificationsRes.data) setCertifications(certificationsRes.data);
     } catch (error) {
       console.error("Failed to load profile data:", error);
       toast.error("Failed to load data");
@@ -272,6 +280,128 @@ export function ProfileView() {
     } catch (error) {
       console.error("Failed to delete skill:", error);
       toast.error("Failed to delete skill");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ==================== Language Methods ====================
+  const addLanguage = async () => {
+    try {
+      setSaving(true);
+      const request: AddLanguageRequest = {
+        language: "New Language",
+        proficiency: "Conversational",
+      };
+      const res = await api.createLanguage(request);
+      if (res.success && res.data) {
+        setLanguages(prev => [...prev, res.data!]);
+        setEditingLanguage(res.data);
+        toast.success("Language added");
+      } else {
+        toast.error(res.error || "Failed to add");
+      }
+    } catch (error) {
+      console.error("Failed to add language:", error);
+      toast.error("Failed to add language");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateLanguage = async (lang: Language) => {
+    try {
+      setSaving(true);
+      const res = await api.updateLanguage(String(lang.id), lang);
+      if (res.success) {
+        setLanguages(prev => prev.map(l => l.id === lang.id ? lang : l));
+        setEditingLanguage(null);
+        toast.success("Language updated");
+      } else {
+        toast.error(res.error || "Failed to update");
+      }
+    } catch (error) {
+      console.error("Failed to update language:", error);
+      toast.error("Failed to update language");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteLanguage = async (id: string) => {
+    try {
+      setSaving(true);
+      const res = await api.deleteLanguage(id);
+      if (res.success) {
+        setLanguages(prev => prev.filter(l => l.id !== id));
+        toast.success("Language deleted");
+      } else {
+        toast.error(res.error || "Failed to delete");
+      }
+    } catch (error) {
+      console.error("Failed to delete language:", error);
+      toast.error("Failed to delete language");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ==================== Certification Methods ====================
+  const addCertification = async () => {
+    try {
+      setSaving(true);
+      const request: AddCertificationRequest = {
+        name: "New Certification",
+        issuer: "Issuing Organization",
+      };
+      const res = await api.createCertification(request);
+      if (res.success && res.data) {
+        setCertifications(prev => [...prev, res.data!]);
+        setEditingCertification(res.data);
+        toast.success("Certification added");
+      } else {
+        toast.error(res.error || "Failed to add");
+      }
+    } catch (error) {
+      console.error("Failed to add certification:", error);
+      toast.error("Failed to add certification");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateCertification = async (cert: Certification) => {
+    try {
+      setSaving(true);
+      const res = await api.updateCertification(String(cert.id), cert);
+      if (res.success) {
+        setCertifications(prev => prev.map(c => c.id === cert.id ? cert : c));
+        setEditingCertification(null);
+        toast.success("Certification updated");
+      } else {
+        toast.error(res.error || "Failed to update");
+      }
+    } catch (error) {
+      console.error("Failed to update certification:", error);
+      toast.error("Failed to update certification");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteCertification = async (id: string) => {
+    try {
+      setSaving(true);
+      const res = await api.deleteCertification(id);
+      if (res.success) {
+        setCertifications(prev => prev.filter(c => c.id !== id));
+        toast.success("Certification deleted");
+      } else {
+        toast.error(res.error || "Failed to delete");
+      }
+    } catch (error) {
+      console.error("Failed to delete certification:", error);
+      toast.error("Failed to delete certification");
     } finally {
       setSaving(false);
     }
@@ -682,6 +812,177 @@ export function ProfileView() {
     );
   };
 
+  // ==================== Language Item Component ====================
+  const LanguageItem = ({ lang }: { lang: Language }) => {
+    if (editingLanguage?.id === lang.id) {
+      return (
+        <div className="p-4 rounded-lg border bg-background space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Language</label>
+              <Input
+                placeholder="e.g., English, Spanish, Mandarin"
+                value={editingLanguage.language}
+                onChange={(e) => setEditingLanguage({ ...editingLanguage, language: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Proficiency</label>
+              <Select
+                value={editingLanguage.proficiency || ""}
+                onValueChange={(value) => setEditingLanguage({ ...editingLanguage, proficiency: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select proficiency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Native">Native / Bilingual</SelectItem>
+                  <SelectItem value="Fluent">Fluent</SelectItem>
+                  <SelectItem value="Advanced">Advanced</SelectItem>
+                  <SelectItem value="Intermediate">Intermediate</SelectItem>
+                  <SelectItem value="Conversational">Conversational</SelectItem>
+                  <SelectItem value="Elementary">Elementary</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setEditingLanguage(null)} disabled={saving}>
+              <X className="h-4 w-4 mr-1" /> Cancel
+            </Button>
+            <Button size="sm" onClick={() => updateLanguage(editingLanguage)} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />} Save
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="p-4 rounded-lg border bg-muted/20 flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <span className="font-medium">{lang.language || "Untitled"}</span>
+          {lang.proficiency && (
+            <Badge variant="secondary" className="text-xs">{lang.proficiency}</Badge>
+          )}
+        </div>
+        <div className="flex gap-1">
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingLanguage(lang)}>
+            <Pencil className="h-3 w-3" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => deleteLanguage(lang.id)}>
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // ==================== Certification Item Component ====================
+  const CertificationItem = ({ cert }: { cert: Certification }) => {
+    if (editingCertification?.id === cert.id) {
+      return (
+        <div className="p-4 rounded-lg border bg-background space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Certification Name</label>
+              <Input
+                placeholder="e.g., AWS Solutions Architect"
+                value={editingCertification.name}
+                onChange={(e) => setEditingCertification({ ...editingCertification, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Issuing Organization</label>
+              <Input
+                placeholder="e.g., Amazon Web Services"
+                value={editingCertification.issuer || ""}
+                onChange={(e) => setEditingCertification({ ...editingCertification, issuer: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Issue Date</label>
+              <Input
+                type="date"
+                value={editingCertification.issueDate || ""}
+                onChange={(e) => setEditingCertification({ ...editingCertification, issueDate: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Expiration Date (optional)</label>
+              <Input
+                type="date"
+                value={editingCertification.expirationDate || ""}
+                onChange={(e) => setEditingCertification({ ...editingCertification, expirationDate: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Credential ID (optional)</label>
+              <Input
+                placeholder="Credential ID"
+                value={editingCertification.credentialId || ""}
+                onChange={(e) => setEditingCertification({ ...editingCertification, credentialId: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Credential URL (optional)</label>
+              <Input
+                placeholder="https://..."
+                value={editingCertification.credentialUrl || ""}
+                onChange={(e) => setEditingCertification({ ...editingCertification, credentialUrl: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setEditingCertification(null)} disabled={saving}>
+              <X className="h-4 w-4 mr-1" /> Cancel
+            </Button>
+            <Button size="sm" onClick={() => updateCertification(editingCertification)} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />} Save
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="p-4 rounded-lg border bg-muted/20 flex justify-between items-start">
+        <div>
+          <h4 className="font-semibold">{cert.name || "Untitled"}</h4>
+          {cert.issuer && (
+            <p className="text-sm text-muted-foreground">{cert.issuer}</p>
+          )}
+          {(cert.issueDate || cert.expirationDate) && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Issued: {cert.issueDate || "N/A"}
+              {cert.expirationDate && ` • Expires: ${cert.expirationDate}`}
+            </p>
+          )}
+          {cert.credentialId && (
+            <p className="text-xs text-muted-foreground mt-1">ID: {cert.credentialId}</p>
+          )}
+          {cert.credentialUrl && (
+            <a href={cert.credentialUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline mt-1 block">
+              View Credential
+            </a>
+          )}
+        </div>
+        <div className="flex gap-1">
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingCertification(cert)}>
+            <Pencil className="h-3 w-3" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => deleteCertification(cert.id)}>
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Work Experience Module */}
@@ -788,43 +1089,45 @@ export function ProfileView() {
         </CardContent>
       </Card>
 
-      {/* Certifications Module - Coming Soon */}
-      <Card className="opacity-75">
+      {/* Certifications Module */}
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div className="flex items-center gap-2">
             <Award className="h-5 w-5 text-primary" />
             <CardTitle className="text-lg">Certifications & Awards</CardTitle>
-            <Badge variant="outline" className="text-xs">Coming Soon</Badge>
           </div>
-          <Button size="sm" variant="outline" disabled>
-            <Plus className="h-4 w-4 mr-1" />
+          <Button size="sm" variant="outline" onClick={addCertification} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
             Add Certification
           </Button>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Certifications and awards will be available soon. Stay tuned!
-          </p>
+        <CardContent className="grid gap-4">
+          {certifications.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No certifications yet. Click the button above to add.</p>
+          ) : (
+            certifications.map(cert => <CertificationItem key={cert.id} cert={cert} />)
+          )}
         </CardContent>
       </Card>
 
-      {/* Languages Module - Coming Soon */}
-      <Card className="opacity-75">
+      {/* Languages Module */}
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div className="flex items-center gap-2">
             <Languages className="h-5 w-5 text-primary" />
             <CardTitle className="text-lg">Languages</CardTitle>
-            <Badge variant="outline" className="text-xs">Coming Soon</Badge>
           </div>
-          <Button size="sm" variant="outline" disabled>
-            <Plus className="h-4 w-4 mr-1" />
+          <Button size="sm" variant="outline" onClick={addLanguage} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
             Add Language
           </Button>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Language proficiency will be available soon. Stay tuned!
-          </p>
+        <CardContent className="grid gap-4">
+          {languages.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No languages yet. Click the button above to add.</p>
+          ) : (
+            languages.map(lang => <LanguageItem key={lang.id} lang={lang} />)
+          )}
         </CardContent>
       </Card>
     </div>

@@ -15,11 +15,13 @@ Interview Agent Workflow - 详细深入的简历信息采集面试
 TODO: 后续独立优化开发此 Agent Workflow
 """
 
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from dataclasses import dataclass, field
 from enum import Enum
 
-from ...llm import LLMClient
+# Use TYPE_CHECKING to avoid import issues
+if TYPE_CHECKING:
+    from ...llm import LLMClient
 
 
 class InterviewPhase(Enum):
@@ -78,7 +80,7 @@ class InterviewAgentWorkflow:
 已收集信息：{collected_summary}
 """
 
-    def __init__(self, llm_client: LLMClient):
+    def __init__(self, llm_client: "LLMClient"):
         self.llm = llm_client
 
     def start_session(self, session_id: str, user_id: str) -> tuple[InterviewContext, str]:
